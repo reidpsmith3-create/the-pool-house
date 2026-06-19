@@ -37,6 +37,15 @@ export default async function AdminPage() {
               Build and publish a new pool.
             </p>
           </Link>
+          <Link
+  href="/pools"
+  className="block rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5"
+>
+  <p className="text-xl font-black">Manage Pools</p>
+  <p className="mt-1 text-sm text-zinc-400">
+    Edit pools, entries, payments, scoring, and winners.
+  </p>
+</Link>
         </div>
 
         <div className="mt-8">
@@ -76,7 +85,7 @@ export default async function AdminPage() {
                     </Link>
 
                     <Link
-                      href={`/admin/pools/${pool.slug}/edit`}
+                      href={`/admin/pools/${pool.slug}`}
                       className="rounded-xl bg-zinc-800 px-3 py-2 text-center text-xs font-bold"
                     >
                       Edit
