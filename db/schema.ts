@@ -35,6 +35,7 @@ export const pools = pgTable("pools", {
   rules: text("rules"),
 
   isPublished: boolean("is_published").default(false).notNull(),
+  status: text("status").default("draft").notNull(),
 
   entryFee: numeric("entry_fee", { precision: 10, scale: 2 }),
   maxEntriesPerUser: integer("max_entries_per_user").default(1).notNull(),

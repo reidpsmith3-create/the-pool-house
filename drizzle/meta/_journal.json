@@ -15,6 +15,13 @@
       "when": 1781879846938,
       "tag": "0001_blushing_lily_hollister",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781883560001,
+      "tag": "0002_curved_satana",
+      "breakpoints": true
     }
   ]
 }
