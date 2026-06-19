@@ -12,6 +12,7 @@ import {
   entries,
   entryPicks,
   leaderboardResults,
+  leaderboardSources,
   pickOptions,
   pools,
 } from "@/db/schema";
@@ -34,6 +35,12 @@ export default async function PoolLeaderboardPage({ params }: PageProps) {
   if (!pool) {
     notFound();
   }
+  const sourceRows = await db
+  .select()
+  .from(leaderboardSources)
+  .where(eq(leaderboardSources.poolId, pool.id));
+
+const activeSource = sourceRows.find((source) => source.isActive);
 
   const isGolfPool = pool.poolType === "golf";
 
@@ -156,6 +163,20 @@ const hasCompleteScore = isGolfPool
               ? "Lowest total wins. Golfers are scored by tournament position, minus eligible bonuses."
               : "Leaderboard for this pool."}
           </p>
+          {isGolfPool && activeSource?.lastSyncedAt && (
+  <p className="mt-3 text-xs text-zinc-500">
+    Last updated{" "}
+    {new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Chicago",
+      month: "numeric",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(new Date(activeSource.lastSyncedAt))}{" "}
+    CT
+  </p>
+)}
         </div>
 
         <div className="mt-5 space-y-3">
