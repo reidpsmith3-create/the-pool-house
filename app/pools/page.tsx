@@ -2,7 +2,7 @@ import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { pools } from "@/db/schema";
+import { entries, pools } from "@/db/schema";
 
 function getStatusLabel(status: string) {
   const labels: Record<string, string> = {
@@ -17,10 +17,22 @@ function getStatusLabel(status: string) {
   return labels[status] ?? status;
 }
 
-function PoolCard({ pool }: { pool: typeof pools.$inferSelect }) {
+function PoolCard({
+  pool,
+  entryCount,
+}: {
+  pool: typeof pools.$inferSelect;
+  entryCount: number;
+}) {
+  const prizePool = Number(pool.entryFee ?? 0) * entryCount;
+
   return (
     <Link
-      href={`/pools/${pool.slug}`}
+      href={
+        pool.status === "live"
+          ? `/pools/${pool.slug}/leaderboard`
+          : `/pools/${pool.slug}`
+      }
       className="block rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5"
     >
       <div className="flex items-start justify-between gap-4">
@@ -28,7 +40,9 @@ function PoolCard({ pool }: { pool: typeof pools.$inferSelect }) {
           <p className="text-xs font-black uppercase text-amber-300">
             {pool.poolType}
           </p>
+
           <h3 className="mt-2 text-xl font-black">{pool.title}</h3>
+
           {pool.description && (
             <p className="mt-2 line-clamp-2 text-sm text-zinc-400">
               {pool.description}
@@ -41,9 +55,21 @@ function PoolCard({ pool }: { pool: typeof pools.$inferSelect }) {
         </span>
       </div>
 
-      <div className="mt-4 flex justify-between border-t border-zinc-700 pt-4 text-sm text-zinc-400">
-        <span>${pool.entryFee ?? "0.00"} entry</span>
-        <span>{pool.maxEntriesPerUser} max</span>
+      <div className="mt-4 grid grid-cols-3 gap-3 border-t border-zinc-700 pt-4 text-sm">
+        <div>
+          <p className="font-black text-zinc-100">{entryCount}</p>
+          <p className="text-xs text-zinc-500">Entries</p>
+        </div>
+
+        <div>
+          <p className="font-black text-zinc-100">${pool.entryFee ?? "0.00"}</p>
+          <p className="text-xs text-zinc-500">Entry</p>
+        </div>
+
+        <div>
+          <p className="font-black text-zinc-100">${prizePool.toFixed(2)}</p>
+          <p className="text-xs text-zinc-500">Prize</p>
+        </div>
       </div>
     </Link>
   );
@@ -56,6 +82,17 @@ export default async function PoolsPage() {
     .where(eq(pools.isPublished, true))
     .orderBy(desc(pools.createdAt));
 
+  const allEntries = await db.select().from(entries);
+
+  const entryCountByPoolId = new Map<string, number>();
+
+  for (const entry of allEntries) {
+    entryCountByPoolId.set(
+      entry.poolId,
+      (entryCountByPoolId.get(entry.poolId) ?? 0) + 1
+    );
+  }
+
   const livePools = publishedPools.filter((pool) => pool.status === "live");
   const openPools = publishedPools.filter((pool) => pool.status === "open");
   const upcomingPools = publishedPools.filter(
@@ -64,6 +101,13 @@ export default async function PoolsPage() {
   const completedPools = publishedPools.filter(
     (pool) => pool.status === "completed"
   );
+
+  const tabs = [
+    ["Live", livePools.length],
+    ["Open", openPools.length],
+    ["Upcoming", upcomingPools.length],
+    ["Completed", completedPools.length],
+  ];
 
   return (
     <main className="min-h-screen bg-[#0d0f12] px-5 pb-24 pt-5 text-zinc-50">
@@ -77,8 +121,25 @@ export default async function PoolsPage() {
         </header>
 
         <h1 className="text-3xl font-black">Pools</h1>
+        <p className="mt-2 text-sm text-zinc-400">
+          Browse open, live, upcoming, and completed pools.
+        </p>
 
-        <div className="mt-6 space-y-8">
+        <div className="mt-5 grid grid-cols-4 gap-2">
+          {tabs.map(([label, count]) => (
+            <div
+              key={label}
+              className="rounded-2xl border border-zinc-700/70 bg-zinc-900 p-3 text-center"
+            >
+              <p className="text-lg font-black">{count}</p>
+              <p className="mt-1 text-[10px] font-black uppercase text-zinc-500">
+                {label}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-8 space-y-8">
           {livePools.length > 0 && (
             <section>
               <h2 className="mb-3 flex items-center gap-2 text-sm font-black uppercase tracking-wide">
@@ -88,7 +149,11 @@ export default async function PoolsPage() {
 
               <div className="space-y-3">
                 {livePools.map((pool) => (
-                  <PoolCard key={pool.id} pool={pool} />
+                  <PoolCard
+                    key={pool.id}
+                    pool={pool}
+                    entryCount={entryCountByPoolId.get(pool.id) ?? 0}
+                  />
                 ))}
               </div>
             </section>
@@ -102,7 +167,11 @@ export default async function PoolsPage() {
 
               <div className="space-y-3">
                 {openPools.map((pool) => (
-                  <PoolCard key={pool.id} pool={pool} />
+                  <PoolCard
+                    key={pool.id}
+                    pool={pool}
+                    entryCount={entryCountByPoolId.get(pool.id) ?? 0}
+                  />
                 ))}
               </div>
             </section>
@@ -116,7 +185,11 @@ export default async function PoolsPage() {
 
               <div className="space-y-3">
                 {upcomingPools.map((pool) => (
-                  <PoolCard key={pool.id} pool={pool} />
+                  <PoolCard
+                    key={pool.id}
+                    pool={pool}
+                    entryCount={entryCountByPoolId.get(pool.id) ?? 0}
+                  />
                 ))}
               </div>
             </section>
@@ -130,7 +203,11 @@ export default async function PoolsPage() {
 
               <div className="space-y-3">
                 {completedPools.map((pool) => (
-                  <PoolCard key={pool.id} pool={pool} />
+                  <PoolCard
+                    key={pool.id}
+                    pool={pool}
+                    entryCount={entryCountByPoolId.get(pool.id) ?? 0}
+                  />
                 ))}
               </div>
             </section>
