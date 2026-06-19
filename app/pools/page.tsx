@@ -145,19 +145,6 @@ export default async function PoolsPage() {
             </div>
           )}
         </div>
-
-        <nav className="fixed bottom-0 left-0 right-0 border-t border-zinc-800 bg-[#0d0f12]/95 px-4 py-3 backdrop-blur">
-          <div className="mx-auto grid max-w-md grid-cols-4 text-center text-[11px] font-semibold text-zinc-500">
-            <Link href="/" className="text-zinc-500">
-              Home
-            </Link>
-            <Link href="/pools" className="text-amber-300">
-              Pools
-            </Link>
-            <span>Live</span>
-            <span>History</span>
-          </div>
-        </nav>
       </div>
     </main>
   );
