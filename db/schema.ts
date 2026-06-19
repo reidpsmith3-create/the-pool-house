@@ -174,6 +174,7 @@ export const leaderboardSources = pgTable("leaderboard_sources", {
   sourceType: text("source_type").notNull(),
   sourceUrl: text("source_url").notNull(),
   isActive: boolean("is_active").default(true).notNull(),
+  autoSyncEnabled: boolean("auto_sync_enabled").default(false).notNull(),
 
   lastSyncedAt: timestamp("last_synced_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

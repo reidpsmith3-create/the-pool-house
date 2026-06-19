@@ -29,9 +29,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   await db
     .update(leaderboardSources)
-    .set({
-      isActive: autoSyncEnabled,
-    })
+    .set({ autoSyncEnabled })
     .where(eq(leaderboardSources.poolId, pool.id));
 
   redirect(`/admin/pools/${pool.slug}/golf/scores?sourceSaved=1`);

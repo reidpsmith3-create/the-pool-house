@@ -185,7 +185,7 @@ export default async function GolfScoresPage({
       <input
         name="autoSyncEnabled"
         type="checkbox"
-        defaultChecked={activeSource.isActive}
+        defaultChecked={activeSource.autoSyncEnabled}
       />
       <span className="text-sm font-bold">
         Automatic hourly syncing enabled
