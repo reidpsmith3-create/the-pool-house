@@ -20,6 +20,9 @@ export async function POST(request: Request, context: RouteContext) {
   const status = String(formData.get("status") ?? "draft").trim();
   const description = String(formData.get("description") ?? "").trim();
   const rules = String(formData.get("rules") ?? "").trim();
+  const entryDeadlineAtRaw = String(
+  formData.get("entryDeadlineAt") ?? ""
+).trim();
 
   if (!title) redirect(`/admin/pools/${slug}/edit`);
 
@@ -30,7 +33,10 @@ export async function POST(request: Request, context: RouteContext) {
       status,
       description: description || null,
       rules: rules || null,
-      updatedAt: new Date(),
+entryDeadlineAt: entryDeadlineAtRaw
+  ? new Date(entryDeadlineAtRaw)
+  : null,
+updatedAt: new Date(),
     })
     .where(eq(pools.slug, slug));
 

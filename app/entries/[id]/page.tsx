@@ -1,8 +1,10 @@
 import { eq } from "drizzle-orm";
-import { notFound } from "next/navigation";
 import Link from "next/link";
+import { notFound } from "next/navigation";
+
 import { db } from "@/db";
 import { entries, entryPicks, pickGroups, pickOptions, pools } from "@/db/schema";
+import { getIsAdmin } from "@/lib/auth-helpers";
 
 type PageProps = {
   params: Promise<{
@@ -10,12 +12,14 @@ type PageProps = {
   }>;
   searchParams: Promise<{
     saved?: string;
+    locked?: string;
   }>;
 };
 
 export default async function EntryPage({ params, searchParams }: PageProps) {
   const { id } = await params;
-  const { saved } = await searchParams;
+  const { saved, locked } = await searchParams;
+  const isAdmin = await getIsAdmin();
 
   const entryRows = await db
     .select({
@@ -32,6 +36,12 @@ export default async function EntryPage({ params, searchParams }: PageProps) {
   if (!row) {
     notFound();
   }
+
+  const deadlinePassed =
+    row.pool.entryDeadlineAt &&
+    new Date(row.pool.entryDeadlineAt).getTime() <= Date.now();
+
+  const picksAreLocked = Boolean(deadlinePassed && !isAdmin);
 
   const groups = await db
     .select()
@@ -65,15 +75,24 @@ export default async function EntryPage({ params, searchParams }: PageProps) {
           </div>
         )}
 
+        {locked === "1" && (
+          <div className="mb-5 rounded-3xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm font-bold text-amber-200">
+            Picks are locked for this pool.
+          </div>
+        )}
+
         <div className="rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5">
           <p className="text-xs font-black uppercase text-amber-300">Entry</p>
+
           <h1 className="mt-3 text-3xl font-black">{row.entry.entryName}</h1>
+
           <Link
-  href={`/entries/${row.entry.id}/edit`}
-  className="mt-3 inline-block text-sm font-black uppercase text-amber-300"
->
-  Edit Entry
-</Link>
+            href={`/entries/${row.entry.id}/edit`}
+            className="mt-3 inline-block text-sm font-black uppercase text-amber-300"
+          >
+            Edit Entry
+          </Link>
+
           <p className="mt-2 text-zinc-400">{row.pool.title}</p>
 
           <div className="mt-5 space-y-3 border-t border-zinc-700 pt-5">
@@ -81,20 +100,42 @@ export default async function EntryPage({ params, searchParams }: PageProps) {
               <span className="text-zinc-400">Participant</span>
               <span>{row.entry.participantName}</span>
             </div>
+
             <div className="flex justify-between">
               <span className="text-zinc-400">Paid</span>
               <span>{row.entry.isPaid ? "Yes" : "No"}</span>
             </div>
+
             <div className="flex justify-between">
               <span className="text-zinc-400">Score</span>
               <span>{row.entry.currentScore ?? "—"}</span>
             </div>
+
+            <div className="flex justify-between gap-4">
+              <span className="text-zinc-400">Pick Deadline</span>
+              <span className="text-right">
+                {row.pool.entryDeadlineAt
+                  ? new Date(row.pool.entryDeadlineAt).toLocaleString()
+                  : "No deadline set"}
+              </span>
+            </div>
+
+            <div className="flex justify-between">
+              <span className="text-zinc-400">Picks</span>
+              <span>{picksAreLocked ? "Locked" : "Open"}</span>
+            </div>
+            {deadlinePassed && isAdmin && (
+  <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm font-bold text-amber-200">
+    Deadline has passed. Admin override is active.
+  </div>
+)}
           </div>
         </div>
 
         {selectedOptions.length > 0 && (
           <div className="mt-5 rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5">
             <h2 className="text-lg font-black">Your Picks</h2>
+
             <div className="mt-4 space-y-3">
               {groups.map((group) => {
                 const selected = selectedOptions.find(
@@ -119,61 +160,70 @@ export default async function EntryPage({ params, searchParams }: PageProps) {
           </div>
         )}
 
-        <form
-          action={`/api/entries/${row.entry.id}/picks`}
-          method="post"
-          className="mt-5 space-y-5"
-        >
-          {groups.length === 0 ? (
-            <div className="rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5">
-              <h2 className="text-lg font-black">No Pick Groups Yet</h2>
-              <p className="mt-2 text-sm text-zinc-400">
-                This pool does not have pick groups imported yet.
-              </p>
-            </div>
-          ) : (
-            groups.map((group) => {
-              const groupOptions = options.filter(
-                (option) => option.groupId === group.id
-              );
+        {picksAreLocked ? (
+          <div className="mt-5 rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5">
+            <h2 className="text-lg font-black">Picks Locked</h2>
+            <p className="mt-2 text-sm text-zinc-400">
+              The entry deadline has passed. Picks can no longer be changed.
+            </p>
+          </div>
+        ) : (
+          <form
+            action={`/api/entries/${row.entry.id}/picks`}
+            method="post"
+            className="mt-5 space-y-5"
+          >
+            {groups.length === 0 ? (
+              <div className="rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5">
+                <h2 className="text-lg font-black">No Pick Groups Yet</h2>
+                <p className="mt-2 text-sm text-zinc-400">
+                  This pool does not have pick groups imported yet.
+                </p>
+              </div>
+            ) : (
+              groups.map((group) => {
+                const groupOptions = options.filter(
+                  (option) => option.groupId === group.id
+                );
 
-              return (
-                <section
-                  key={group.id}
-                  className="rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5"
-                >
-                  <h2 className="text-lg font-black">{group.name}</h2>
-                  <p className="mt-1 text-xs text-zinc-400">Pick {group.maxPicks}</p>
+                return (
+                  <section
+                    key={group.id}
+                    className="rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5"
+                  >
+                    <h2 className="text-lg font-black">{group.name}</h2>
+                    <p className="mt-1 text-xs text-zinc-400">Pick {group.maxPicks}</p>
 
-                  <div className="mt-4 space-y-3">
-                    {groupOptions.map((option) => (
-                      <label
-                        key={option.id}
-                        className="flex items-center gap-3 rounded-2xl border border-zinc-700 bg-zinc-900 p-4"
-                      >
-                        <input
-                          type="radio"
-                          name={`group-${group.id}`}
-                          value={option.id}
-                          defaultChecked={savedPickIds.has(option.id)}
-                        />
-                        <span className="font-bold">
-                          {option.displayName ?? option.name}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </section>
-              );
-            })
-          )}
+                    <div className="mt-4 space-y-3">
+                      {groupOptions.map((option) => (
+                        <label
+                          key={option.id}
+                          className="flex items-center gap-3 rounded-2xl border border-zinc-700 bg-zinc-900 p-4"
+                        >
+                          <input
+                            type="radio"
+                            name={`group-${group.id}`}
+                            value={option.id}
+                            defaultChecked={savedPickIds.has(option.id)}
+                          />
+                          <span className="font-bold">
+                            {option.displayName ?? option.name}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </section>
+                );
+              })
+            )}
 
-          {groups.length > 0 && (
-            <button className="w-full rounded-2xl bg-amber-300 px-4 py-4 text-sm font-black uppercase tracking-wide text-zinc-950">
-              Save Picks
-            </button>
-          )}
-        </form>
+            {groups.length > 0 && (
+              <button className="w-full rounded-2xl bg-amber-300 px-4 py-4 text-sm font-black uppercase tracking-wide text-zinc-950">
+                Save Picks
+              </button>
+            )}
+          </form>
+        )}
       </div>
     </main>
   );

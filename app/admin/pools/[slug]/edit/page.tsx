@@ -60,7 +60,19 @@ export default async function EditPoolPage({ params }: PageProps) {
               <option value="archived">Archived</option>
             </select>
           </label>
-
+<label className="block">
+  <span className="text-sm font-bold">Entry Deadline</span>
+  <input
+    name="entryDeadlineAt"
+    type="datetime-local"
+    defaultValue={
+      pool.entryDeadlineAt
+        ? new Date(pool.entryDeadlineAt).toISOString().slice(0, 16)
+        : ""
+    }
+    className="mt-2 w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-50 outline-none"
+  />
+</label>
           <label className="block">
             <span className="text-sm font-bold">Description</span>
             <textarea
