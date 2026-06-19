@@ -9,16 +9,21 @@ export default async function HistoryPage() {
     .select()
     .from(pools)
     .where(eq(pools.status, "completed"))
-    .orderBy(desc(pools.updatedAt));
+    .orderBy(desc(pools.completedAt));
 
   return (
     <main className="min-h-screen bg-[#0d0f12] px-5 pb-24 pt-5 text-zinc-50">
       <div className="mx-auto max-w-md">
         <header className="mb-6 overflow-hidden rounded-[2rem] border border-zinc-700/70 bg-black">
-          <img src="/pool-house-logo.png" alt="The Pool House" className="w-full" />
+          <img
+            src="/pool-house-logo.png"
+            alt="The Pool House"
+            className="w-full"
+          />
         </header>
 
         <h1 className="text-3xl font-black">History</h1>
+
         <p className="mt-2 text-sm text-zinc-400">
           Completed pools and past champions.
         </p>
@@ -35,16 +40,35 @@ export default async function HistoryPage() {
             completedPools.map((pool) => (
               <Link
                 key={pool.id}
-                href={`/pools/${pool.slug}`}
+                href={`/pools/${pool.slug}/leaderboard`}
                 className="block rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5"
               >
-                <p className="text-xs font-black uppercase text-amber-300">
-                  Completed
-                </p>
-                <h2 className="mt-2 text-xl font-black">{pool.title}</h2>
-                <p className="mt-2 text-sm text-zinc-400">
-                  Champion details coming soon.
-                </p>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs font-black uppercase text-amber-300">
+                      Champion
+                    </p>
+
+                    <h2 className="mt-2 text-xl font-black">
+                      {pool.title}
+                    </h2>
+
+                    <p className="mt-3 text-lg font-bold text-emerald-300">
+                      🏆 {pool.winnerName ?? "Unknown Winner"}
+                    </p>
+
+                    {pool.completedAt && (
+                      <p className="mt-2 text-sm text-zinc-500">
+                        Completed{" "}
+                        {new Date(pool.completedAt).toLocaleDateString()}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="text-3xl text-zinc-600">
+                    ›
+                  </div>
+                </div>
               </Link>
             ))
           )}

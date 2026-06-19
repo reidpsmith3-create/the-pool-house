@@ -186,7 +186,7 @@ export default async function Home() {
             {recentCompletedPools.length > 0 ? (
               recentCompletedPools.map((pool) => (
                 <Link
-                  href={`/pools/${pool.slug}`}
+                  href={`/pools/${pool.slug}/leaderboard`}
                   key={pool.id}
                   className="flex items-center gap-4 rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-4"
                 >
@@ -196,8 +196,8 @@ export default async function Home() {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-lg font-black">{pool.title}</p>
                     <p className="mt-1 text-sm font-bold text-amber-300">
-                      Winner coming soon
-                    </p>
+  🏆 {pool.winnerName ?? "Unknown Winner"}
+</p>
                   </div>
                   <span className="text-2xl text-zinc-500">›</span>
                 </Link>

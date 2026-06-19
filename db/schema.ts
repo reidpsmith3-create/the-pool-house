@@ -46,6 +46,10 @@ export const pools = pgTable("pools", {
   scoringSettings: jsonb("scoring_settings").default({}).notNull(),
   tiebreakerSettings: jsonb("tiebreaker_settings").default({}).notNull(),
 
+  winnerEntryId: uuid("winner_entry_id"),
+  winnerName: text("winner_name"),
+  completedAt: timestamp("completed_at"),
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

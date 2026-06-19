@@ -85,6 +85,15 @@ export default async function EditPoolPage({ params }: PageProps) {
             Save Pool
           </button>
         </form>
+        <form
+  action={`/api/admin/pools/${pool.slug}/finalize`}
+  method="post"
+  className="mt-5"
+>
+  <button className="w-full rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-4 text-sm font-black uppercase tracking-wide text-emerald-300">
+    Finalize Pool
+  </button>
+</form>
       </div>
     </main>
   );
