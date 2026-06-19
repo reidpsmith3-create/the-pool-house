@@ -22,8 +22,9 @@ export async function POST(request: Request) {
   const formData = await request.formData();
 
   const title = String(formData.get("title") ?? "").trim();
-  const poolType = String(formData.get("poolType") ?? "").trim();
-  const description = String(formData.get("description") ?? "").trim();
+const poolType = String(formData.get("poolType") ?? "").trim();
+const status = String(formData.get("status") ?? "draft").trim();
+const description = String(formData.get("description") ?? "").trim();
   const rules = String(formData.get("rules") ?? "").trim();
   const entryFee = String(formData.get("entryFee") ?? "").trim();
   const maxEntriesPerUser = Number(formData.get("maxEntriesPerUser") ?? 1);
@@ -50,6 +51,7 @@ export async function POST(request: Request) {
         ? maxEntriesPerUser
         : 1,
       isPublished,
+status,
     });
 
     return NextResponse.json({ slug });

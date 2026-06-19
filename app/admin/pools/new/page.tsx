@@ -56,21 +56,40 @@ export default function NewPoolPage() {
             />
           </label>
 
-          <label className="block">
-            <span className="text-sm font-bold">Pool Type</span>
-            <select
-              name="poolType"
-              required
-              className="mt-2 w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-50 outline-none"
-              defaultValue="golf"
-            >
-              <option value="golf">Golf Pool</option>
-              <option value="survivor">NFL Survivor</option>
-              <option value="pickem">Pick&apos;em</option>
-              <option value="bracket">Bracket Pool</option>
-              <option value="predictions">Predictions Pool</option>
-            </select>
-          </label>
+<div className="grid grid-cols-2 gap-4">
+  <label className="block">
+    <span className="text-sm font-bold">Pool Type</span>
+    <select
+      name="poolType"
+      required
+      className="mt-2 w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-50 outline-none"
+      defaultValue="golf"
+    >
+      <option value="golf">Golf Pool</option>
+      <option value="survivor">NFL Survivor</option>
+      <option value="pickem">Pick&apos;em</option>
+      <option value="bracket">Bracket Pool</option>
+      <option value="predictions">Predictions Pool</option>
+    </select>
+  </label>
+
+  <label className="block">
+    <span className="text-sm font-bold">Status</span>
+    <select
+      name="status"
+      required
+      className="mt-2 w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-50 outline-none"
+      defaultValue="draft"
+    >
+      <option value="draft">Draft</option>
+      <option value="upcoming">Upcoming</option>
+      <option value="open">Open</option>
+      <option value="live">Live</option>
+      <option value="completed">Completed</option>
+      <option value="archived">Archived</option>
+    </select>
+  </label>
+</div>
 
           <label className="block">
             <span className="text-sm font-bold">Description</span>
