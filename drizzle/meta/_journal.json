@@ -8,6 +8,13 @@
       "when": 1781877697441,
       "tag": "0000_brief_night_thrasher",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781879846938,
+      "tag": "0001_blushing_lily_hollister",
+      "breakpoints": true
     }
   ]
 }
