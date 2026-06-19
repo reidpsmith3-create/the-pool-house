@@ -1,19 +1,26 @@
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import {
+  calculateGolfEntryScore,
+  getGolfBonus,
+  type GolfScoringSettings,
+} from "@/lib/scoring/golf";
 
 import { db } from "@/db";
-import { entries, entryPicks, pickGroups, pickOptions, pools } from "@/db/schema";
+import {
+  entries,
+  entryPicks,
+  leaderboardResults,
+  pickGroups,
+  pickOptions,
+  pools,
+} from "@/db/schema";
 import { getIsAdmin } from "@/lib/auth-helpers";
 
 type PageProps = {
-  params: Promise<{
-    id: string;
-  }>;
-  searchParams: Promise<{
-    saved?: string;
-    locked?: string;
-  }>;
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ saved?: string; locked?: string }>;
 };
 
 export default async function EntryPage({ params, searchParams }: PageProps) {
@@ -22,10 +29,7 @@ export default async function EntryPage({ params, searchParams }: PageProps) {
   const isAdmin = await getIsAdmin();
 
   const entryRows = await db
-    .select({
-      entry: entries,
-      pool: pools,
-    })
+    .select({ entry: entries, pool: pools })
     .from(entries)
     .innerJoin(pools, eq(entries.poolId, pools.id))
     .where(eq(entries.id, id))
@@ -33,9 +37,14 @@ export default async function EntryPage({ params, searchParams }: PageProps) {
 
   const row = entryRows[0];
 
-  if (!row) {
-    notFound();
-  }
+  if (!row) notFound();
+
+  const isGolfPool = row.pool.poolType === "golf";
+
+  const golfScoringSettings =
+    row.pool.scoringSettings && typeof row.pool.scoringSettings === "object"
+      ? (row.pool.scoringSettings as GolfScoringSettings)
+      : {};
 
   const deadlinePassed =
     row.pool.entryDeadlineAt &&
@@ -59,8 +68,63 @@ export default async function EntryPage({ params, searchParams }: PageProps) {
     .from(entryPicks)
     .where(eq(entryPicks.entryId, row.entry.id));
 
+  const results = isGolfPool
+    ? await db
+        .select()
+        .from(leaderboardResults)
+        .where(eq(leaderboardResults.poolId, row.pool.id))
+    : [];
+
   const savedPickIds = new Set(savedPicks.map((pick) => pick.pickOptionId));
   const selectedOptions = options.filter((option) => savedPickIds.has(option.id));
+
+  const resultByPickOptionId = new Map(
+    results.map((result) => [result.pickOptionId, result])
+  );
+
+const selectedPickDetails = groups.flatMap((group) => {
+  const selectedForGroup = selectedOptions.filter(
+    (option) => option.groupId === group.id
+  );
+
+  return selectedForGroup.map((selected) => {
+    const result = isGolfPool ? resultByPickOptionId.get(selected.id) : null;
+
+    const position = result?.position ?? null;
+    const bonus =
+      isGolfPool && typeof position === "number"
+        ? getGolfBonus(position, golfScoringSettings)
+        : 0;
+
+    return {
+      group,
+      selected,
+      result,
+      position,
+      bonus,
+    };
+  });
+});
+
+const golfScore = isGolfPool
+  ? calculateGolfEntryScore(
+      selectedPickDetails.map((item) => ({
+        position: item.position,
+        bonus: item.bonus,
+        score:
+          typeof item.position === "number"
+            ? item.position - item.bonus
+            : null,
+      })),
+      golfScoringSettings
+    )
+  : null;
+
+const basePositionScore = golfScore?.baseScore ?? null;
+const totalBonus = golfScore?.totalBonus ?? 0;
+const finalGolfScore = golfScore?.totalScore ?? null;
+
+  const scoreLabel = isGolfPool ? "Final Score" : "Score";
 
   return (
     <main className="min-h-screen bg-[#0d0f12] px-5 py-8 text-zinc-50">
@@ -107,9 +171,27 @@ export default async function EntryPage({ params, searchParams }: PageProps) {
             </div>
 
             <div className="flex justify-between">
-              <span className="text-zinc-400">Score</span>
-              <span>{row.entry.currentScore ?? "—"}</span>
+              <span className="text-zinc-400">{scoreLabel}</span>
+              <span>
+                {isGolfPool
+                  ? finalGolfScore ?? row.entry.currentScore ?? "—"
+                  : row.entry.currentScore ?? "—"}
+              </span>
             </div>
+
+            {isGolfPool && (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-zinc-400">Base Position Score</span>
+                  <span>{basePositionScore ?? "—"}</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-zinc-400">Bonuses</span>
+                  <span>{totalBonus > 0 ? `-${totalBonus}` : "0"}</span>
+                </div>
+              </>
+            )}
 
             <div className="flex justify-between gap-4">
               <span className="text-zinc-400">Pick Deadline</span>
@@ -124,35 +206,67 @@ export default async function EntryPage({ params, searchParams }: PageProps) {
               <span className="text-zinc-400">Picks</span>
               <span>{picksAreLocked ? "Locked" : "Open"}</span>
             </div>
+
             {deadlinePassed && isAdmin && (
-  <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm font-bold text-amber-200">
-    Deadline has passed. Admin override is active.
-  </div>
-)}
+              <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm font-bold text-amber-200">
+                Deadline has passed. Admin override is active.
+              </div>
+            )}
           </div>
         </div>
 
-        {selectedOptions.length > 0 && (
+        {selectedPickDetails.length > 0 && (
           <div className="mt-5 rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5">
-            <h2 className="text-lg font-black">Your Picks</h2>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-black">Your Picks</h2>
+                <p className="mt-1 text-xs text-zinc-400">
+                  {isGolfPool
+                    ? "Lowest final score wins. Winner and top-five bonuses do not stack."
+                    : "Your saved selections for this pool."}
+                </p>
+              </div>
+
+              {isGolfPool && (
+                <div className="rounded-2xl border border-amber-300/40 bg-amber-300/10 px-4 py-3 text-right">
+                  <p className="text-[10px] font-black uppercase text-amber-300">
+                    Final
+                  </p>
+                  <p className="text-2xl font-black">
+                    {finalGolfScore ?? "—"}
+                  </p>
+                </div>
+              )}
+            </div>
 
             <div className="mt-4 space-y-3">
-              {groups.map((group) => {
-                const selected = selectedOptions.find(
-                  (option) => option.groupId === group.id
-                );
-
+              {selectedPickDetails.map(({ group, selected, result, bonus }) => {
                 if (!selected) return null;
 
                 return (
                   <div
-                    key={group.id}
-                    className="flex justify-between gap-4 border-b border-zinc-700 pb-3 last:border-0 last:pb-0"
+                    key={`${group.id}-${selected.id}`}
+                    className="rounded-2xl border border-zinc-700 bg-zinc-900 p-4"
                   >
-                    <span className="text-zinc-400">{group.name}</span>
-                    <span className="text-right font-bold">
+                    <div className="flex justify-between gap-4">
+                      <span className="text-xs font-black uppercase text-zinc-500">
+                        {group.name}
+                      </span>
+
+                      {isGolfPool && (
+                        <span className="text-xs font-black uppercase text-amber-300">
+                          Place:{" "}
+                          {result?.displayPosition ??
+                            result?.position ??
+                            "Not imported"}
+                          {bonus > 0 ? ` / -${bonus}` : ""}
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="mt-2 text-lg font-black">
                       {selected.displayName ?? selected.name}
-                    </span>
+                    </p>
                   </div>
                 );
               })}
@@ -192,7 +306,9 @@ export default async function EntryPage({ params, searchParams }: PageProps) {
                     className="rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5"
                   >
                     <h2 className="text-lg font-black">{group.name}</h2>
-                    <p className="mt-1 text-xs text-zinc-400">Pick {group.maxPicks}</p>
+                    <p className="mt-1 text-xs text-zinc-400">
+                      Pick {group.maxPicks}
+                    </p>
 
                     <div className="mt-4 space-y-3">
                       {groupOptions.map((option) => (
@@ -201,11 +317,11 @@ export default async function EntryPage({ params, searchParams }: PageProps) {
                           className="flex items-center gap-3 rounded-2xl border border-zinc-700 bg-zinc-900 p-4"
                         >
                           <input
-                            type="radio"
-                            name={`group-${group.id}`}
-                            value={option.id}
-                            defaultChecked={savedPickIds.has(option.id)}
-                          />
+  type={group.maxPicks > 1 ? "checkbox" : "radio"}
+  name={`group-${group.id}`}
+  value={option.id}
+  defaultChecked={savedPickIds.has(option.id)}
+/>
                           <span className="font-bold">
                             {option.displayName ?? option.name}
                           </span>

@@ -24,6 +24,23 @@ export async function POST(request: Request) {
   const title = String(formData.get("title") ?? "").trim();
 const poolType = String(formData.get("poolType") ?? "").trim();
 const status = String(formData.get("status") ?? "draft").trim();
+
+const validPoolTypes = [
+  "golf",
+  "survivor",
+  "pickem",
+  "bracket",
+  "predictions",
+];
+
+const validStatuses = [
+  "draft",
+  "upcoming",
+  "open",
+  "live",
+  "completed",
+  "archived",
+];
 const description = String(formData.get("description") ?? "").trim();
   const rules = String(formData.get("rules") ?? "").trim();
   const entryFee = String(formData.get("entryFee") ?? "").trim();
@@ -31,11 +48,25 @@ const description = String(formData.get("description") ?? "").trim();
   const isPublished = formData.get("isPublished") === "on";
 
   if (!title || !poolType) {
-    return NextResponse.json(
-      { error: "Title and pool type are required." },
-      { status: 400 }
-    );
-  }
+  return NextResponse.json(
+    { error: "Title and pool type are required." },
+    { status: 400 }
+  );
+}
+
+if (!validPoolTypes.includes(poolType)) {
+  return NextResponse.json(
+    { error: "Invalid pool type." },
+    { status: 400 }
+  );
+}
+
+if (!validStatuses.includes(status)) {
+  return NextResponse.json(
+    { error: "Invalid status." },
+    { status: 400 }
+  );
+}
 
   const slug = slugify(title);
 

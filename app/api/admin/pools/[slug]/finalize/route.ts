@@ -1,12 +1,16 @@
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import {
+  calculateGolfEntryScore,
+  getGolfBonus,
+  type GolfScoringSettings,
+} from "@/lib/scoring/golf";
 
 import { db } from "@/db";
 import {
   entries,
   entryPicks,
   leaderboardResults,
-  pickOptions,
   pools,
 } from "@/db/schema";
 import { getIsAdmin } from "@/lib/auth-helpers";
@@ -14,6 +18,7 @@ import { getIsAdmin } from "@/lib/auth-helpers";
 type RouteContext = {
   params: Promise<{ slug: string }>;
 };
+
 
 export async function POST(_request: Request, context: RouteContext) {
   const isAdmin = await getIsAdmin();
@@ -30,6 +35,15 @@ export async function POST(_request: Request, context: RouteContext) {
   const pool = poolRows[0];
   if (!pool) redirect("/admin");
 
+  if (pool.poolType !== "golf") {
+    redirect(`/admin/pools/${pool.slug}?unsupportedFinalize=1`);
+  }
+
+  const golfScoringSettings =
+    pool.scoringSettings && typeof pool.scoringSettings === "object"
+      ? (pool.scoringSettings as GolfScoringSettings)
+      : {};
+
   const poolEntries = await db
     .select()
     .from(entries)
@@ -40,17 +54,11 @@ export async function POST(_request: Request, context: RouteContext) {
     .from(entryPicks)
     .where(eq(entryPicks.poolId, pool.id));
 
-  const options = await db
-    .select()
-    .from(pickOptions)
-    .where(eq(pickOptions.poolId, pool.id));
-
   const results = await db
     .select()
     .from(leaderboardResults)
     .where(eq(leaderboardResults.poolId, pool.id));
 
-  const optionById = new Map(options.map((option) => [option.id, option]));
   const resultByOptionId = new Map(
     results.map((result) => [result.pickOptionId, result])
   );
@@ -59,32 +67,41 @@ export async function POST(_request: Request, context: RouteContext) {
     .map((entry) => {
       const entryPickRows = picks.filter((pick) => pick.entryId === entry.id);
 
-      const selectedGolfers = entryPickRows.map((pick) => {
-        const option = optionById.get(pick.pickOptionId);
-        const result = resultByOptionId.get(pick.pickOptionId);
+ const golfScore = calculateGolfEntryScore(
+  entryPickRows.map((pick) => {
+    const position = resultByOptionId.get(pick.pickOptionId)?.position ?? null;
+    const bonus =
+      typeof position === "number"
+        ? getGolfBonus(position, golfScoringSettings)
+        : 0;
 
-        return {
-          name: option?.displayName ?? option?.name ?? "Unknown",
-          position: result?.position ?? null,
-          score: Number(result?.scoreValue ?? 0),
-        };
-      });
+    return {
+      position,
+      bonus,
+      score:
+        typeof position === "number"
+          ? position - bonus
+          : null,
+    };
+  }),
+  golfScoringSettings
+);
 
-      const totalScore = selectedGolfers.reduce(
-        (sum, golfer) => sum + golfer.score,
-        0
-      );
+const hasCompleteScore = golfScore.hasCompleteScore;
+const basePositionScore = golfScore.baseScore ?? 0;
+const totalBonus = golfScore.totalBonus;
+const finalGolfScore = golfScore.totalScore ?? 0;
 
       return {
         entry,
-        totalScore,
-        hasCompleteScore:
-          selectedGolfers.length > 0 &&
-          selectedGolfers.every((golfer) => golfer.position !== null),
+        basePositionScore,
+        totalBonus,
+        finalGolfScore,
+        hasCompleteScore,
       };
     })
     .filter((standing) => standing.hasCompleteScore)
-    .sort((a, b) => a.totalScore - b.totalScore);
+    .sort((a, b) => a.finalGolfScore - b.finalGolfScore);
 
   const winner = standings[0];
 
@@ -98,8 +115,8 @@ export async function POST(_request: Request, context: RouteContext) {
       status: "completed",
       winnerEntryId: winner.entry.id,
       winnerName: winner.entry.participantName,
-      completedAt: new Date(),
       updatedAt: new Date(),
+      completedAt: new Date(),
     })
     .where(eq(pools.id, pool.id));
 

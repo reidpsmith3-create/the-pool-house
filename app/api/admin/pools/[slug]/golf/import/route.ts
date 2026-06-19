@@ -57,7 +57,13 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   const formData = await request.formData();
-  const csv = String(formData.get("csv") ?? "");
+  const file = formData.get("csvFile");
+
+if (!(file instanceof File)) {
+  redirect(`/admin/pools/${pool.slug}/golf/setup`);
+}
+
+const csv = await file.text();
 
   const rows = parseCsv(csv).filter(
     (row) => row.group_name && row.golfer_name

@@ -101,6 +101,9 @@ export default async function PoolsPage() {
   const completedPools = publishedPools.filter(
     (pool) => pool.status === "completed"
   );
+  const archivedPools = publishedPools.filter(
+  (pool) => pool.status === "archived"
+);
 
   const tabs = [
     ["Live", livePools.length],
@@ -212,7 +215,23 @@ export default async function PoolsPage() {
               </div>
             </section>
           )}
+{archivedPools.length > 0 && (
+  <section>
+    <h2 className="mb-3 text-sm font-black uppercase tracking-wide">
+      Archived
+    </h2>
 
+    <div className="space-y-3">
+      {archivedPools.map((pool) => (
+        <PoolCard
+          key={pool.id}
+          pool={pool}
+          entryCount={entryCountByPoolId.get(pool.id) ?? 0}
+        />
+      ))}
+    </div>
+  </section>
+)}
           {publishedPools.length === 0 && (
             <div className="rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5">
               <p className="font-black">No published pools yet.</p>

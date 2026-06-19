@@ -28,7 +28,7 @@ export default function NewPoolPage() {
       return;
     }
 
-    router.push(`/pools/${data.slug}`);
+    router.push(`/admin/pools/${data.slug}`);
   }
 
   return (

@@ -14,6 +14,7 @@ import { getIsAdmin } from "@/lib/auth-helpers";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ unsupportedFinalize?: string }>;
 };
 
 function StatusCard({
@@ -43,11 +44,15 @@ function StatusCard({
   );
 }
 
-export default async function AdminPoolDashboardPage({ params }: PageProps) {
+export default async function AdminPoolDashboardPage({
+  params,
+  searchParams,
+}: PageProps) {
   const isAdmin = await getIsAdmin();
   if (!isAdmin) redirect("/");
 
   const { slug } = await params;
+  const { unsupportedFinalize } = await searchParams;
 
   const poolRows = await db
     .select()
@@ -57,6 +62,8 @@ export default async function AdminPoolDashboardPage({ params }: PageProps) {
 
   const pool = poolRows[0];
   if (!pool) redirect("/admin");
+
+  const isGolfPool = pool.poolType === "golf";
 
   const poolEntries = await db
     .select()
@@ -82,21 +89,43 @@ export default async function AdminPoolDashboardPage({ params }: PageProps) {
   const prizePool = Number(pool.entryFee ?? 0) * poolEntries.length;
   const unpaidCount = poolEntries.length - paidCount;
 
-  const actions = [
-    ["Edit Pool", `/admin/pools/${pool.slug}/edit`],
-    ["Entries", `/admin/pools/${pool.slug}/entries`],
-    ["Payments", `/admin/pools/${pool.slug}/payments`],
+  const poolTypeActions: Record<string, string[][]> = {
+  golf: [
     ["Golf Setup", `/admin/pools/${pool.slug}/golf/setup`],
     ["Golf Scores", `/admin/pools/${pool.slug}/golf/scores`],
-    ["Public Page", `/pools/${pool.slug}`],
-    ["Leaderboard", `/pools/${pool.slug}/leaderboard`],
-  ];
+  ],
+  survivor: [["Survivor Setup", `/admin/pools/${pool.slug}/survivor/setup`]],
+  pickem: [["Pick'em Setup", `/admin/pools/${pool.slug}/pickem/setup`]],
+  bracket: [["Bracket Setup", `/admin/pools/${pool.slug}/bracket/setup`]],
+  predictions: [
+    ["Predictions Setup", `/admin/pools/${pool.slug}/predictions/setup`],
+  ],
+};
+
+const actions = [
+  ["Edit Pool", `/admin/pools/${pool.slug}/edit`],
+  ["Entries", `/admin/pools/${pool.slug}/entries`],
+  ["Payments", `/admin/pools/${pool.slug}/payments`],
+  ...(poolTypeActions[pool.poolType] ?? []),
+  ["Public Page", `/pools/${pool.slug}`],
+  ["Leaderboard", `/pools/${pool.slug}/leaderboard`],
+];
 
   return (
     <main className="min-h-screen bg-[#0d0f12] px-5 py-8 text-zinc-50">
       <div className="mx-auto max-w-md">
         <h1 className="text-3xl font-black">Pool Admin</h1>
         <p className="mt-2 text-sm text-zinc-400">{pool.title}</p>
+
+        {unsupportedFinalize === "1" && (
+          <div className="mt-5 rounded-3xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-amber-100">
+            <p className="font-black">Finalize is not available yet.</p>
+            <p className="mt-1 text-zinc-300">
+              Golf pools can be finalized now. This pool type needs its own
+              scoring/finalization rules first.
+            </p>
+          </div>
+        )}
 
         <div className="mt-6 rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5">
           <p className="text-xs font-black uppercase text-amber-300">
@@ -128,57 +157,43 @@ export default async function AdminPoolDashboardPage({ params }: PageProps) {
             <StatusCard
               label="Entries"
               value={String(poolEntries.length)}
-              helper={
-                poolEntries.length > 0
-                  ? "People have joined"
-                  : "No entries yet"
-              }
+              helper={poolEntries.length > 0 ? "People have joined" : "No entries yet"}
               tone={poolEntries.length > 0 ? "good" : "warn"}
             />
 
             <StatusCard
               label="Payments"
               value={`${paidCount}/${poolEntries.length}`}
-              helper={
-                unpaidCount === 0
-                  ? "All entries paid"
-                  : `${unpaidCount} unpaid`
-              }
-              tone={
-                poolEntries.length > 0 && unpaidCount === 0 ? "good" : "warn"
-              }
+              helper={unpaidCount === 0 ? "All entries paid" : `${unpaidCount} unpaid`}
+              tone={poolEntries.length > 0 && unpaidCount === 0 ? "good" : "warn"}
             />
 
-            <StatusCard
-              label="Golfers"
-              value={String(golfers.length)}
-              helper={
-                groups.length > 0
-                  ? `${groups.length} groups imported`
-                  : "No groups imported"
-              }
-              tone={golfers.length > 0 && groups.length > 0 ? "good" : "warn"}
-            />
+            {isGolfPool && (
+              <>
+                <StatusCard
+                  label="Golfers"
+                  value={String(golfers.length)}
+                  helper={
+                    groups.length > 0
+                      ? `${groups.length} groups imported`
+                      : "No groups imported"
+                  }
+                  tone={golfers.length > 0 && groups.length > 0 ? "good" : "warn"}
+                />
 
-            <StatusCard
-              label="Scores"
-              value={String(scores.length)}
-              helper={
-                scores.length > 0
-                  ? "Scores entered"
-                  : "No scores entered"
-              }
-              tone={scores.length > 0 ? "good" : "warn"}
-            />
+                <StatusCard
+                  label="Places"
+                  value={String(scores.length)}
+                  helper={scores.length > 0 ? "Places entered" : "No places entered"}
+                  tone={scores.length > 0 ? "good" : "warn"}
+                />
+              </>
+            )}
 
             <StatusCard
               label="Champion"
               value={pool.winnerName ? "Set" : "None"}
-              helper={
-                pool.winnerName
-                  ? pool.winnerName
-                  : "Pool not finalized"
-              }
+              helper={pool.winnerName ? pool.winnerName : "Pool not finalized"}
               tone={pool.winnerName ? "good" : "neutral"}
             />
 
@@ -202,7 +217,13 @@ export default async function AdminPoolDashboardPage({ params }: PageProps) {
               href={href}
               className="rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5 text-center text-sm font-black uppercase tracking-wide"
             >
-              {label}
+              <div>{label}</div>
+{pool.poolType !== "golf" &&
+  label.includes("Setup") && (
+    <div className="mt-2 text-[10px] font-bold text-zinc-500">
+      Coming Soon
+    </div>
+  )}
             </Link>
           ))}
         </div>

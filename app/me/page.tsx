@@ -3,16 +3,17 @@ import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 import { db } from "@/db";
-import { entries, pools, users } from "@/db/schema";
+import { entries, pools } from "@/db/schema";
 import { getCurrentUser, getIsAdmin } from "@/lib/auth-helpers";
 
 export default async function MyEntriesPage() {
-const currentUser = await getCurrentUser();
-const isAdmin = await getIsAdmin();
+  const currentUser = await getCurrentUser();
+  const isAdmin = await getIsAdmin();
 
-if (!currentUser) {
-  redirect("/api/auth/signin");
-}
+  if (!currentUser) {
+    redirect("/api/auth/signin");
+  }
+
   const myEntries = await db
     .select({
       entry: entries,
@@ -36,16 +37,17 @@ if (!currentUser) {
         <h1 className="text-3xl font-black">My Entries</h1>
 
         <p className="mt-2 text-sm text-zinc-400">
-          All of your active pool entries.
+          All of your pool entries.
         </p>
+
         {isAdmin && (
-  <Link
-    href="/admin"
-    className="mt-5 block rounded-2xl bg-amber-300 px-4 py-4 text-center text-sm font-black uppercase tracking-wide text-zinc-950"
-  >
-    Admin Dashboard
-  </Link>
-)}
+          <Link
+            href="/admin"
+            className="mt-5 block rounded-2xl bg-amber-300 px-4 py-4 text-center text-sm font-black uppercase tracking-wide text-zinc-950"
+          >
+            Admin Dashboard
+          </Link>
+        )}
 
         <div className="mt-6 space-y-3">
           {myEntries.length === 0 ? (
@@ -66,13 +68,9 @@ if (!currentUser) {
                   {pool.poolType}
                 </p>
 
-                <h2 className="mt-2 text-xl font-black">
-                  {pool.title}
-                </h2>
+                <h2 className="mt-2 text-xl font-black">{pool.title}</h2>
 
-                <p className="mt-2 text-sm text-zinc-400">
-                  {entry.entryName}
-                </p>
+                <p className="mt-2 text-sm text-zinc-400">{entry.entryName}</p>
 
                 <div className="mt-4 flex items-center justify-between">
                   <span className="text-xs uppercase text-zinc-500">

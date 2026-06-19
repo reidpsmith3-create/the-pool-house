@@ -23,6 +23,21 @@ export default async function EditPoolPage({ params }: PageProps) {
 
   const pool = poolRows[0];
   if (!pool) redirect("/admin");
+  const scoringSettings =
+  pool.scoringSettings && typeof pool.scoringSettings === "object"
+    ? (pool.scoringSettings as {
+       winnerBonus?: number;
+topFiveBonus?: number;
+scoresToCount?: number;
+missedCutScore?: number;
+      })
+    : {};
+
+const winnerBonus = Number(scoringSettings.winnerBonus ?? 0);
+const topFiveBonus = Number(scoringSettings.topFiveBonus ?? 0);
+const scoresToCount = Number(scoringSettings.scoresToCount ?? 4);
+const missedCutScore =
+  scoringSettings.missedCutScore ?? "";
 
   return (
     <main className="min-h-screen bg-[#0d0f12] px-5 py-8 text-zinc-50">
@@ -73,6 +88,70 @@ export default async function EditPoolPage({ params }: PageProps) {
     className="mt-2 w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-50 outline-none"
   />
 </label>
+{pool.poolType === "golf" && (
+  <div className="rounded-3xl border border-amber-500/40 bg-amber-500/10 p-5">
+    <h2 className="text-lg font-black text-amber-200">Golf Bonuses</h2>
+    <p className="mt-2 text-sm text-zinc-300">
+      Bonuses subtract from an entry&apos;s total position score. Winner bonus
+      and top-five bonus do not stack.
+    </p>
+
+    <div className="mt-4 grid grid-cols-2 gap-4">
+      <label className="block">
+        <span className="text-sm font-bold">Winner Bonus</span>
+        <input
+          name="winnerBonus"
+          type="number"
+          min="0"
+          step="1"
+          defaultValue={winnerBonus}
+          className="mt-2 w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-50 outline-none"
+        />
+      </label>
+
+      <label className="block">
+        <span className="text-sm font-bold">Top Five Bonus</span>
+        <input
+          name="topFiveBonus"
+          type="number"
+          min="0"
+          step="1"
+          defaultValue={topFiveBonus}
+          className="mt-2 w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-50 outline-none"
+        />
+      </label>
+      <label className="block">
+  <span className="text-sm font-bold">Scores to Count</span>
+  <input
+    name="scoresToCount"
+    type="number"
+    min="1"
+    step="1"
+    defaultValue={scoresToCount}
+    className="mt-2 w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-50 outline-none"
+  />
+</label>
+<label className="block">
+  <span className="text-sm font-bold">Missed Cut Score</span>
+
+  <input
+    name="missedCutScore"
+    type="number"
+    min="1"
+    step="1"
+    defaultValue={missedCutScore}
+    placeholder="Optional"
+    className="mt-2 w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-50 outline-none"
+  />
+</label>
+    </div>
+
+    <p className="mt-3 text-xs text-zinc-400">
+      Example: if a picked golfer finishes 1st, only the winner bonus applies.
+      If they finish 2nd–5th, only the top-five bonus applies.
+    </p>
+  </div>
+)}
           <label className="block">
             <span className="text-sm font-bold">Description</span>
             <textarea
@@ -104,6 +183,15 @@ export default async function EditPoolPage({ params }: PageProps) {
 >
   <button className="w-full rounded-2xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-4 text-sm font-black uppercase tracking-wide text-emerald-300">
     Finalize Pool
+  </button>
+</form>
+<form
+  action={`/api/admin/pools/${pool.slug}/delete`}
+  method="post"
+  className="mt-5"
+>
+  <button className="w-full rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-4 text-sm font-black uppercase tracking-wide text-red-300">
+    Delete Pool
   </button>
 </form>
       </div>

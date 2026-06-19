@@ -33,7 +33,11 @@ export async function POST(request: Request, context: RouteContext) {
 
   const row = entryRows[0];
 
-  if (!row || row.entry.userId !== currentUser.id) {
+  if (!row) {
+    redirect("/");
+  }
+
+  if (row.entry.userId !== currentUser.id && !isAdmin) {
     redirect("/");
   }
 
@@ -58,10 +62,27 @@ export async function POST(request: Request, context: RouteContext) {
   const validOptionIds = new Set(validOptions.map((option) => option.id));
 
   const formData = await request.formData();
+const selectedOptionIdsByGroup = new Map<string, string[]>();
 
-  const selectedOptionIds = groups
-    .map((group) => String(formData.get(`group-${group.id}`) ?? ""))
+for (const group of groups) {
+  const selectedForGroup = formData
+    .getAll(`group-${group.id}`)
+    .map((value) => String(value))
     .filter((optionId) => optionId && validOptionIds.has(optionId));
+
+  if (selectedForGroup.length < group.minPicks) {
+    redirect(`/entries/${row.entry.id}?saved=0`);
+  }
+
+  selectedOptionIdsByGroup.set(
+    group.id,
+    selectedForGroup.slice(0, group.maxPicks)
+  );
+}
+
+const selectedOptionIds = Array.from(
+  new Set(Array.from(selectedOptionIdsByGroup.values()).flat())
+);
 
   await db.delete(entryPicks).where(eq(entryPicks.entryId, row.entry.id));
 

@@ -19,9 +19,7 @@ export const users = pgTable("users", {
 
 export const admins = pgTable("admins", {
   id: uuid("id").defaultRandom().primaryKey(),
-  userId: uuid("user_id")
-    .references(() => users.id)
-    .notNull(),
+  userId: uuid("user_id").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -134,7 +132,20 @@ export const pickOptions = pgTable("pick_options", {
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+export const pickOptionAliases = pgTable("pick_option_aliases", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  poolId: uuid("pool_id")
+    .references(() => pools.id)
+    .notNull(),
+  pickOptionId: uuid("pick_option_id")
+    .references(() => pickOptions.id)
+    .notNull(),
 
+  sourceName: text("source_name").notNull(),
+  normalizedSourceName: text("normalized_source_name").notNull(),
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
 export const entryPicks = pgTable("entry_picks", {
   id: uuid("id").defaultRandom().primaryKey(),
   entryId: uuid("entry_id")

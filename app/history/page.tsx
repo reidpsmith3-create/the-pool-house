@@ -46,8 +46,8 @@ export default async function HistoryPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs font-black uppercase text-amber-300">
-                      Champion
-                    </p>
+  {pool.poolType}
+</p>
 
                     <h2 className="mt-2 text-xl font-black">
                       {pool.title}

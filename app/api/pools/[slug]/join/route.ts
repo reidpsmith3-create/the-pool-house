@@ -28,7 +28,7 @@ export async function POST(_request: Request, context: RouteContext) {
 
   const pool = poolRows[0];
 
-  if (!pool || !pool.isPublished) {
+  if (!pool || !pool.isPublished || pool.status !== "open") {
     redirect("/pools");
   }
 
