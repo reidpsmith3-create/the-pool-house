@@ -38,16 +38,20 @@ export async function POST(request: Request, context: RouteContext) {
   )}&tournId=${encodeURIComponent(tournId)}&year=${encodeURIComponent(year)}`;
 
   await db
-    .update(leaderboardSources)
-    .set({ isActive: false })
-    .where(eq(leaderboardSources.poolId, pool.id));
+  .update(leaderboardSources)
+  .set({
+    isActive: false,
+    autoSyncEnabled: false,
+  })
+  .where(eq(leaderboardSources.poolId, pool.id));
 
   await db.insert(leaderboardSources).values({
-    poolId: pool.id,
-    sourceType: "rapidapi-golf",
-    sourceUrl,
-    isActive: true,
-  });
+  poolId: pool.id,
+  sourceType: "rapidapi-golf",
+  sourceUrl,
+  isActive: true,
+  autoSyncEnabled: false,
+});
 
   redirect(`/admin/pools/${pool.slug}/golf/scores?sourceSaved=1`);
 }
