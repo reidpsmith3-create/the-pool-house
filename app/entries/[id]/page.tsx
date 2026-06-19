@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
-
+import Link from "next/link";
 import { db } from "@/db";
 import { entries, entryPicks, pickGroups, pickOptions, pools } from "@/db/schema";
 
@@ -68,6 +68,12 @@ export default async function EntryPage({ params, searchParams }: PageProps) {
         <div className="rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5">
           <p className="text-xs font-black uppercase text-amber-300">Entry</p>
           <h1 className="mt-3 text-3xl font-black">{row.entry.entryName}</h1>
+          <Link
+  href={`/entries/${row.entry.id}/edit`}
+  className="mt-3 inline-block text-sm font-black uppercase text-amber-300"
+>
+  Edit Entry
+</Link>
           <p className="mt-2 text-zinc-400">{row.pool.title}</p>
 
           <div className="mt-5 space-y-3 border-t border-zinc-700 pt-5">
