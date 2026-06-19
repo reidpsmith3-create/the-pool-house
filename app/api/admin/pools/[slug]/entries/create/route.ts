@@ -35,7 +35,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   await db.insert(entries).values({
     poolId: pool.id,
-    userId: null,
+    userId: "00000000-0000-0000-0000-000000000000",
     participantName,
     entryName,
     isPaid,
