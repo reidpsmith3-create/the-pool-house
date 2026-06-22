@@ -1,16 +1,25 @@
 export type ParsedGolfResult = {
   name: string;
+  sourceId: string | null;
   displayPosition: string;
   position: number | null;
   status: string;
-  scoreValue?: string | null;
+  scoreValue: string | null;
+  currentRoundScore: string | null;
+  holesPlayed: string | null;
+  totalStrokes: string | null;
 };
 
 export function parseDisplayPosition(value: string) {
   const cleaned = value.trim().toUpperCase();
 
   if (!cleaned || cleaned === "-" || cleaned === "—") return null;
-  if (cleaned === "CUT" || cleaned === "MC" || cleaned === "WD" || cleaned === "DQ") {
+  if (
+    cleaned === "CUT" ||
+    cleaned === "MC" ||
+    cleaned === "WD" ||
+    cleaned === "DQ"
+  ) {
     return null;
   }
 
@@ -28,6 +37,7 @@ export function normalizeGolfName(value: string) {
     .replace(/\s+/g, " ")
     .trim();
 }
+
 export type RapidGolfLeaderboardRow = {
   firstName?: string;
   lastName?: string;
@@ -35,9 +45,27 @@ export type RapidGolfLeaderboardRow = {
   position?: string;
   total?: string;
   status?: string;
+  currentRoundScore?: string;
+  roundScore?: string;
+  today?: string;
+  thru?: string;
+  holesPlayed?: string;
+  totalStrokes?: string;
 };
 
-export function parseRapidGolfLeaderboardRows(rawData: unknown) {
+function firstAvailableValue(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (value !== undefined && value !== null && String(value).trim() !== "") {
+      return String(value).trim();
+    }
+  }
+
+  return null;
+}
+
+export function parseRapidGolfLeaderboardRows(
+  rawData: unknown
+): ParsedGolfResult[] {
   const data = rawData as {
     leaderboardRows?: RapidGolfLeaderboardRow[];
   };
@@ -46,34 +74,32 @@ export function parseRapidGolfLeaderboardRows(rawData: unknown) {
     ? data.leaderboardRows
     : [];
 
-  return rows
-    .map((row) => {
-      const firstName = String(row.firstName ?? "").trim();
-      const lastName = String(row.lastName ?? "").trim();
-      const name = `${firstName} ${lastName}`.trim();
-      const displayPosition = String(row.position ?? "").trim();
+  const parsedRows: ParsedGolfResult[] = [];
 
-      if (!name || !displayPosition) return null;
+  for (const row of rows) {
+    const firstName = String(row.firstName ?? "").trim();
+    const lastName = String(row.lastName ?? "").trim();
+    const name = `${firstName} ${lastName}`.trim();
+    const displayPosition = String(row.position ?? "").trim();
 
-      return {
-        name,
-        sourceId: row.playerId ? String(row.playerId) : null,
-        displayPosition,
-        position: parseDisplayPosition(displayPosition),
-        status: row.status ?? "active",
-        scoreValue: row.total ?? null,
-      };
-    })
-    .filter(
-      (
-        row
-      ): row is {
-        name: string;
-        sourceId: string | null;
-        displayPosition: string;
-        position: number | null;
-        status: string;
-        scoreValue: string | null;
-      } => Boolean(row)
-    );
+    if (!name || !displayPosition) continue;
+
+    parsedRows.push({
+      name,
+      sourceId: row.playerId ? String(row.playerId) : null,
+      displayPosition,
+      position: parseDisplayPosition(displayPosition),
+      status: row.status ?? "active",
+      scoreValue: row.total ?? null,
+      currentRoundScore: firstAvailableValue(
+        row.currentRoundScore,
+        row.roundScore,
+        row.today
+      ),
+      holesPlayed: firstAvailableValue(row.thru, row.holesPlayed),
+      totalStrokes: firstAvailableValue(row.totalStrokes),
+    });
+  }
+
+  return parsedRows;
 }

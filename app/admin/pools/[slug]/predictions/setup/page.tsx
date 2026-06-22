@@ -1,22 +1,25 @@
 import Link from "next/link";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 import { db } from "@/db";
-import { pools } from "@/db/schema";
+import { pickGroups, pickOptions, pools } from "@/db/schema";
 import { getIsAdmin } from "@/lib/auth-helpers";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ created?: string }>;
 };
 
 export default async function PredictionsSetupPage({
   params,
+  searchParams,
 }: PageProps) {
   const isAdmin = await getIsAdmin();
   if (!isAdmin) redirect("/");
 
   const { slug } = await params;
+  const { created } = await searchParams;
 
   const poolRows = await db
     .select()
@@ -27,6 +30,28 @@ export default async function PredictionsSetupPage({
   const pool = poolRows[0];
   if (!pool) redirect("/admin");
 
+  const questions = await db
+    .select()
+    .from(pickGroups)
+    .where(eq(pickGroups.poolId, pool.id))
+    .orderBy(asc(pickGroups.sortOrder), asc(pickGroups.createdAt));
+
+  const choices = await db
+    .select()
+    .from(pickOptions)
+    .where(eq(pickOptions.poolId, pool.id))
+    .orderBy(asc(pickOptions.createdAt));
+
+  const choicesByQuestion = new Map<string, typeof choices>();
+
+  for (const choice of choices) {
+    if (!choice.groupId) continue;
+
+    const existing = choicesByQuestion.get(choice.groupId) ?? [];
+    existing.push(choice);
+    choicesByQuestion.set(choice.groupId, existing);
+  }
+
   return (
     <main className="min-h-screen bg-[#0d0f12] px-5 py-8 text-zinc-50">
       <div className="mx-auto max-w-md">
@@ -34,21 +59,101 @@ export default async function PredictionsSetupPage({
           Admin · Predictions Setup
         </p>
 
-        <h1 className="mt-3 text-3xl font-black">
-          Predictions Setup
-        </h1>
+        <h1 className="mt-3 text-3xl font-black">Predictions Setup</h1>
 
-        <p className="mt-2 text-sm text-zinc-400">
-          {pool.title}
-        </p>
+        <p className="mt-2 text-sm text-zinc-400">{pool.title}</p>
 
-        <div className="mt-6 rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5">
-          <p className="font-black">Coming soon.</p>
+        {created === "1" && (
+          <div className="mt-5 rounded-3xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm text-emerald-100">
+            <p className="font-black">Prediction question added.</p>
+          </div>
+        )}
 
-          <p className="mt-2 text-sm text-zinc-400">
-            This page will eventually manage custom prediction questions,
-            answer choices, locking, grading, and scoring.
+        <form
+          action={`/api/admin/pools/${pool.slug}/predictions/questions/create`}
+          method="post"
+          className="mt-6 rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5"
+        >
+          <h2 className="text-lg font-black">Add Custom Question</h2>
+
+          <label className="mt-4 block">
+            <span className="text-sm font-bold">Question</span>
+            <input
+              name="question"
+              required
+              placeholder="Who will win the World Series?"
+              className="mt-2 w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-50 outline-none"
+            />
+          </label>
+
+          <label className="mt-4 block">
+            <span className="text-sm font-bold">Answer Choices</span>
+            <textarea
+              name="choices"
+              required
+              rows={8}
+              placeholder={"Dodgers\nYankees\nBraves\nCubs"}
+              className="mt-2 w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-50 outline-none"
+            />
+          </label>
+
+          <p className="mt-2 text-xs text-zinc-500">
+            Enter one answer choice per line. Users will pick one answer for this
+            question.
           </p>
+
+          <button className="mt-5 w-full rounded-2xl bg-amber-300 px-4 py-4 text-sm font-black uppercase tracking-wide text-zinc-950">
+            Add Question
+          </button>
+        </form>
+
+        <div className="mt-6">
+          <h2 className="mb-3 text-lg font-black">Current Questions</h2>
+
+          {questions.length === 0 ? (
+            <div className="rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5">
+              <p className="font-black">No prediction questions yet.</p>
+              <p className="mt-2 text-sm text-zinc-400">
+                Add your first custom question above.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {questions.map((question, index) => {
+                const questionChoices = choicesByQuestion.get(question.id) ?? [];
+
+                return (
+                  <div
+                    key={question.id}
+                    className="rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5"
+                  >
+                    <p className="text-xs font-black uppercase text-zinc-500">
+                      Question {index + 1}
+                    </p>
+
+                    <h3 className="mt-2 text-lg font-black">{question.name}</h3>
+
+                    <div className="mt-4 space-y-2">
+                      {questionChoices.length === 0 ? (
+                        <p className="text-sm text-zinc-400">
+                          No answer choices.
+                        </p>
+                      ) : (
+                        questionChoices.map((choice) => (
+                          <div
+                            key={choice.id}
+                            className="rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm font-bold text-zinc-200"
+                          >
+                            {choice.displayName ?? choice.name}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <Link

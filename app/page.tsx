@@ -2,9 +2,27 @@ import Link from "next/link";
 import { desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
-import { pools } from "@/db/schema";
+import {
+  entries,
+  entryPicks,
+  leaderboardResults,
+  leaderboardSources,
+  pickOptions,
+  pools,
+} from "@/db/schema";
+import {
+  calculateGolfEntryScore,
+  getGolfBonus,
+  type GolfScoringSettings,
+} from "@/lib/scoring/golf";
 
 export const dynamic = "force-dynamic";
+
+type PageProps = {
+  searchParams?: Promise<{
+    livePool?: string;
+  }>;
+};
 
 function getPoolIcon(poolType: string) {
   const icons: Record<string, string> = {
@@ -43,18 +61,123 @@ function getStatusLabel(status: string) {
   return labels[status] ?? status;
 }
 
-export default async function Home() {
+async function getGolfHomepageStandings(pool: typeof pools.$inferSelect) {
+  const golfScoringSettings =
+    pool.scoringSettings && typeof pool.scoringSettings === "object"
+      ? (pool.scoringSettings as GolfScoringSettings)
+      : {};
+
+  const poolEntries = await db
+    .select()
+    .from(entries)
+    .where(eq(entries.poolId, pool.id));
+
+  const picks = await db
+    .select()
+    .from(entryPicks)
+    .where(eq(entryPicks.poolId, pool.id));
+
+  const options = await db
+    .select()
+    .from(pickOptions)
+    .where(eq(pickOptions.poolId, pool.id));
+
+  const results = await db
+    .select()
+    .from(leaderboardResults)
+    .where(eq(leaderboardResults.poolId, pool.id));
+
+  const sourceRows = await db
+    .select()
+    .from(leaderboardSources)
+    .where(eq(leaderboardSources.poolId, pool.id));
+
+  const activeSource = sourceRows.find((source) => source.isActive);
+
+  const optionById = new Map(options.map((option) => [option.id, option]));
+  const resultByOptionId = new Map(
+    results.map((result) => [result.pickOptionId, result])
+  );
+
+  const standings = poolEntries
+    .map((entry) => {
+      const entryPickRows = picks.filter((pick) => pick.entryId === entry.id);
+
+      const selectedPicks = entryPickRows.map((pick) => {
+        const option = optionById.get(pick.pickOptionId);
+        const result = resultByOptionId.get(pick.pickOptionId);
+        const position = result?.position ?? null;
+        const bonus =
+          typeof position === "number"
+            ? getGolfBonus(position, golfScoringSettings)
+            : 0;
+
+        return {
+          name: option?.displayName ?? option?.name ?? "Unknown",
+          position,
+          displayPosition: result?.displayPosition ?? null,
+          bonus,
+          score: typeof position === "number" ? position - bonus : null,
+        };
+      });
+
+      const golfScore = calculateGolfEntryScore(
+        selectedPicks.map((pick) => ({
+          position: pick.position,
+          bonus: pick.bonus,
+          score: pick.score,
+        })),
+        golfScoringSettings
+      );
+
+      return {
+        entry,
+        selectedPicks,
+        totalScore: golfScore.totalScore,
+        hasCompleteScore: golfScore.hasCompleteScore,
+      };
+    })
+    .sort((a, b) => {
+      if (a.hasCompleteScore && !b.hasCompleteScore) return -1;
+      if (!a.hasCompleteScore && b.hasCompleteScore) return 1;
+      if (a.totalScore === null && b.totalScore === null) return 0;
+      if (a.totalScore === null) return 1;
+      if (b.totalScore === null) return -1;
+      return Number(a.totalScore) - Number(b.totalScore);
+    });
+
+  return {
+    standings,
+    activeSource,
+  };
+}
+
+export default async function Home({ searchParams }: PageProps) {
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const selectedLivePoolSlug = resolvedSearchParams.livePool;
+
   const activePools = await db
     .select()
     .from(pools)
-    .where(
-      inArray(pools.status, ["open", "upcoming", "live"])
-    )
+    .where(inArray(pools.status, ["open", "upcoming", "live"]))
     .orderBy(desc(pools.createdAt))
     .limit(3);
 
-  const livePools = activePools.filter((pool) => pool.status === "live");
-  const featuredLivePool = livePools[0] ?? null;
+  const livePools = await db
+    .select()
+    .from(pools)
+    .where(eq(pools.status, "live"))
+    .orderBy(desc(pools.updatedAt));
+
+  const selectedLivePool =
+    livePools.find((pool) => pool.slug === selectedLivePoolSlug) ??
+    livePools[0] ??
+    null;
+
+  const selectedLivePoolData =
+    selectedLivePool?.poolType === "golf"
+      ? await getGolfHomepageStandings(selectedLivePool)
+      : null;
 
   const recentCompletedPools = await db
     .select()
@@ -82,35 +205,122 @@ export default async function Home() {
             </h2>
           </div>
 
-          {featuredLivePool ? (
+          {selectedLivePool ? (
             <article className="rounded-[2rem] border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5 shadow-xl shadow-black/30">
-              <div className="mb-5 flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-xl font-black">
-                    {featuredLivePool.title}
-                  </h3>
-                  <p className="mt-1 text-sm text-zinc-400">
-                    ${featuredLivePool.entryFee ?? "0.00"} entry ·{" "}
-                    {featuredLivePool.maxEntriesPerUser} max entry
-                  </p>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    Live scoring coming soon
-                  </p>
+              {livePools.length > 1 && (
+                <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+                  {livePools.map((pool) => {
+                    const isSelected = pool.id === selectedLivePool.id;
+
+                    return (
+                      <Link
+                        key={pool.id}
+                        href={`/?livePool=${pool.slug}`}
+                        className={
+                          isSelected
+                            ? "shrink-0 rounded-full bg-emerald-400 px-4 py-2 text-xs font-black uppercase text-zinc-950"
+                            : "shrink-0 rounded-full bg-black/30 px-4 py-2 text-xs font-black uppercase text-zinc-400"
+                        }
+                      >
+                        {pool.title}
+                      </Link>
+                    );
+                  })}
                 </div>
-                <span className="rounded-full bg-emerald-400 px-4 py-1.5 text-[11px] font-black uppercase text-zinc-950">
+              )}
+
+              <div className="mb-5 flex items-start justify-between gap-4">
+                <div className="flex min-w-0 gap-4">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black/30 text-2xl">
+                    {selectedLivePool.logoUrl ? (
+                      <img
+                        src={selectedLivePool.logoUrl}
+                        alt={`${selectedLivePool.title} logo`}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      getPoolIcon(selectedLivePool.poolType)
+                    )}
+                  </div>
+
+                  <div className="min-w-0">
+                    <h3 className="text-xl font-black">
+                      {selectedLivePool.title}
+                    </h3>
+                    <p className="mt-1 text-sm text-zinc-400">
+                      ${selectedLivePool.entryFee ?? "0.00"} entry ·{" "}
+                      {selectedLivePool.maxEntriesPerUser} max entry
+                    </p>
+
+                    {selectedLivePool.poolType === "golf" &&
+                      selectedLivePoolData?.activeSource?.lastSyncedAt && (
+                        <p className="mt-1 text-xs text-zinc-500">
+                          Updated{" "}
+                          {new Intl.DateTimeFormat("en-US", {
+                            timeZone: "America/Chicago",
+                            month: "numeric",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          }).format(
+                            new Date(
+                              selectedLivePoolData.activeSource.lastSyncedAt
+                            )
+                          )}{" "}
+                          CT
+                        </p>
+                      )}
+                  </div>
+                </div>
+
+                <span className="shrink-0 rounded-full bg-emerald-400 px-4 py-1.5 text-[11px] font-black uppercase text-zinc-950">
                   Live
                 </span>
               </div>
 
-              <div className="rounded-2xl border border-zinc-700/70 bg-black/20 p-4 text-sm text-zinc-400">
-                Live leaderboard will appear here once scoring is connected.
-              </div>
+              {selectedLivePool.poolType === "golf" && selectedLivePoolData ? (
+                <div className="rounded-2xl border border-zinc-700/70 bg-black/20 p-4">
+                  {selectedLivePoolData.standings.length === 0 ? (
+                    <p className="text-sm text-zinc-400">
+                      No entries are on the leaderboard yet.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {selectedLivePoolData.standings
+                        .slice(0, 5)
+                        .map((standing, index) => (
+                          <div
+                            key={standing.entry.id}
+                            className="flex items-center justify-between gap-4"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-black">
+                                #{index + 1} {standing.entry.entryName}
+                              </p>
+                              <p className="truncate text-xs text-zinc-500">
+                                {standing.entry.participantName}
+                              </p>
+                            </div>
+
+                            <p className="shrink-0 text-xl font-black text-emerald-300">
+                              {standing.totalScore ?? "—"}
+                            </p>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-zinc-700/70 bg-black/20 p-4 text-sm text-zinc-400">
+                  Live leaderboard preview is not set up for this pool type yet.
+                </div>
+              )}
 
               <Link
-                href={`/pools/${featuredLivePool.slug}`}
+                href={`/pools/${selectedLivePool.slug}/leaderboard`}
                 className="mt-5 block w-full rounded-2xl bg-zinc-100 px-4 py-4 text-center text-sm font-black uppercase tracking-wide text-zinc-950"
               >
-                View Pool
+                View Full Leaderboard
               </Link>
             </article>
           ) : (
@@ -145,20 +355,23 @@ export default async function Home() {
                   className="relative block overflow-hidden rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-4"
                 >
                   <div
-                    className={`absolute bottom-0 left-0 top-0 w-1.5 ${getPoolAccent(pool.poolType)}`}
+                    className={`absolute bottom-0 left-0 top-0 w-1.5 ${getPoolAccent(
+                      pool.poolType
+                    )}`}
                   />
                   <div className="flex gap-4 pl-2">
                     <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black/30 text-2xl">
-  {pool.logoUrl ? (
-    <img
-      src={pool.logoUrl}
-      alt={`${pool.title} logo`}
-      className="h-full w-full object-cover"
-    />
-  ) : (
-    getPoolIcon(pool.poolType)
-  )}
-</div>
+                      {pool.logoUrl ? (
+                        <img
+                          src={pool.logoUrl}
+                          alt={`${pool.title} logo`}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        getPoolIcon(pool.poolType)
+                      )}
+                    </div>
+
                     <div className="min-w-0 flex-1">
                       <h3 className="text-lg font-black leading-snug">
                         {pool.title}
@@ -201,22 +414,24 @@ export default async function Home() {
                   className="flex items-center gap-4 rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-4"
                 >
                   <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black/30 text-2xl">
-  {pool.logoUrl ? (
-    <img
-      src={pool.logoUrl}
-      alt={`${pool.title} logo`}
-      className="h-full w-full object-cover"
-    />
-  ) : (
-    "🏆"
-  )}
-</div>
+                    {pool.logoUrl ? (
+                      <img
+                        src={pool.logoUrl}
+                        alt={`${pool.title} logo`}
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      "🏆"
+                    )}
+                  </div>
+
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-lg font-black">{pool.title}</p>
                     <p className="mt-1 text-sm font-bold text-amber-300">
-  🏆 {pool.winnerName ?? "Unknown Winner"}
-</p>
+                      🏆 {pool.winnerName ?? "Unknown Winner"}
+                    </p>
                   </div>
+
                   <span className="text-2xl text-zinc-500">›</span>
                 </Link>
               ))

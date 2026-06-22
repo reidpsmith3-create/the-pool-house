@@ -172,10 +172,13 @@ export async function GET(request: Request) {
                   ? String(effectivePosition)
                   : null,
           metadata: {
-            source: "rapidapi_golf_cron",
-            sourceName: name,
-            normalizedSourceName: normalizedName,
-          },
+  source: "rapidapi_golf_cron",
+  sourceName: name,
+  normalizedSourceName: normalizedName,
+  currentRoundScore: row.currentRoundScore,
+  holesPlayed: row.holesPlayed,
+  totalStrokes: row.totalStrokes,
+},
           updatedAt: new Date(),
         });
       }

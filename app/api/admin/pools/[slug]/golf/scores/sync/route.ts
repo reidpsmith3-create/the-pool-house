@@ -180,10 +180,13 @@ displayPosition: effectiveDisplayPosition || null,
   ? String(effectivePosition)
   : null,
       metadata: {
-        source: "rapidapi_golf",
-        sourceName: name,
-        normalizedSourceName: normalizedName,
-      },
+  source: "rapidapi_golf",
+  sourceName: name,
+  normalizedSourceName: normalizedName,
+  currentRoundScore: row.currentRoundScore,
+  holesPlayed: row.holesPlayed,
+  totalStrokes: row.totalStrokes,
+},
       updatedAt: new Date(),
     });
   }
