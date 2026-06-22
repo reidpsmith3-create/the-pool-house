@@ -4,6 +4,8 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { pools } from "@/db/schema";
 
+export const dynamic = "force-dynamic";
+
 export default async function LivePage() {
   const livePools = await db
     .select()

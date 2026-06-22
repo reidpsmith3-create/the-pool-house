@@ -4,6 +4,8 @@ import { desc, eq, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { pools } from "@/db/schema";
 
+export const dynamic = "force-dynamic";
+
 function getPoolIcon(poolType: string) {
   const icons: Record<string, string> = {
     golf: "⛳",

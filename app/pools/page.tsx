@@ -4,6 +4,8 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { entries, pools } from "@/db/schema";
 
+export const dynamic = "force-dynamic";
+
 function getStatusLabel(status: string) {
   const labels: Record<string, string> = {
     draft: "Draft",
