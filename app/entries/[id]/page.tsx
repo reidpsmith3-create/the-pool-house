@@ -117,6 +117,51 @@ export default async function EntryPage({ params, searchParams }: PageProps) {
     existing.push(game);
     bracketGamesByRound.set(game.roundName, existing);
   }
+  const bracketDisplayRounds = Array.from(bracketGamesByRound.entries()).map(
+  ([roundName, games]) => ({
+    roundName,
+    games: games
+      .sort((a, b) => a.gameNumber - b.gameNumber)
+      .map((game) => {
+        const sourcePickA = game.sourceGameAId
+          ? bracketPickByGameId.get(game.sourceGameAId)
+          : null;
+
+        const sourcePickB = game.sourceGameBId
+          ? bracketPickByGameId.get(game.sourceGameBId)
+          : null;
+
+        const teamA = game.teamAId
+          ? bracketTeamById.get(game.teamAId)
+          : sourcePickA?.pickedTeamId
+            ? bracketTeamById.get(sourcePickA.pickedTeamId)
+            : null;
+
+        const teamB = game.teamBId
+          ? bracketTeamById.get(game.teamBId)
+          : sourcePickB?.pickedTeamId
+            ? bracketTeamById.get(sourcePickB.pickedTeamId)
+            : null;
+
+        const savedPick = bracketPickByGameId.get(game.id);
+        const pickedTeam = savedPick?.pickedTeamId
+          ? bracketTeamById.get(savedPick.pickedTeamId)
+          : null;
+
+        const winner = game.winnerTeamId
+          ? bracketTeamById.get(game.winnerTeamId)
+          : null;
+
+        return {
+          game,
+          teamA,
+          teamB,
+          pickedTeam,
+          winner,
+        };
+      }),
+  })
+);
 
   const savedPicksByOptionId = new Map(
     savedPicks.map((pick) => [pick.pickOptionId, pick])
@@ -340,7 +385,83 @@ export default async function EntryPage({ params, searchParams }: PageProps) {
             </div>
           </div>
         )}
+{isBracketPool && bracketDisplayRounds.length > 0 && (
+  <div className="mt-5 rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5">
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <h2 className="text-lg font-black">Bracket View</h2>
+        <p className="mt-1 text-xs text-zinc-400">
+          Swipe sideways to view each round.
+        </p>
+      </div>
+    </div>
 
+    <div className="mt-4 overflow-x-auto pb-2">
+      <div className="flex min-w-max gap-3">
+        {bracketDisplayRounds.map((round) => (
+          <div key={round.roundName} className="w-64 shrink-0">
+            <div className="mb-3 rounded-2xl bg-black/30 px-4 py-3">
+              <p className="text-sm font-black uppercase text-amber-300">
+                {round.roundName}
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {round.games.map(({ game, teamA, teamB, pickedTeam, winner }) => (
+                <div
+                  key={game.id}
+                  className="rounded-2xl border border-zinc-700 bg-zinc-900 p-3"
+                >
+                  <p className="mb-2 text-[10px] font-black uppercase text-zinc-500">
+                    Game {game.gameNumber}
+                  </p>
+
+                  <div className="space-y-2">
+                    {[teamA, teamB].map((team) => {
+                      const isPicked = pickedTeam?.id === team?.id;
+                      const isWinner = winner?.id === team?.id;
+
+                      return (
+                        <div
+                          key={team?.id ?? `${game.id}-tbd`}
+                          className={
+                            isPicked
+                              ? "rounded-xl border border-amber-300/50 bg-amber-300/10 px-3 py-2"
+                              : "rounded-xl border border-zinc-700 bg-black/20 px-3 py-2"
+                          }
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate text-sm font-bold">
+                              {team
+                                ? `${team.seed ?? "—"} ${team.name}`
+                                : "Winner TBD"}
+                            </span>
+
+                            {isWinner && (
+                              <span className="text-[10px] font-black uppercase text-emerald-300">
+                                Won
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {pickedTeam && (
+                    <p className="mt-2 text-[11px] font-bold uppercase text-amber-300">
+                      Pick: {pickedTeam.name}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+)}
         {isBracketPool && savedBracketPickDetails.length > 0 && (
           <div className="mt-5 rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5">
             <h2 className="text-lg font-black">Your Bracket Picks</h2>
@@ -390,13 +511,27 @@ export default async function EntryPage({ params, searchParams }: PageProps) {
                       {games
                         .sort((a, b) => a.gameNumber - b.gameNumber)
                         .map((game) => {
-                          const teamA = game.teamAId
-                            ? bracketTeamById.get(game.teamAId)
-                            : null;
-                          const teamB = game.teamBId
-                            ? bracketTeamById.get(game.teamBId)
-                            : null;
-                          const savedPick = bracketPickByGameId.get(game.id);
+                          const sourcePickA = game.sourceGameAId
+  ? bracketPickByGameId.get(game.sourceGameAId)
+  : null;
+
+const sourcePickB = game.sourceGameBId
+  ? bracketPickByGameId.get(game.sourceGameBId)
+  : null;
+
+const teamA = game.teamAId
+  ? bracketTeamById.get(game.teamAId)
+  : sourcePickA?.pickedTeamId
+    ? bracketTeamById.get(sourcePickA.pickedTeamId)
+    : null;
+
+const teamB = game.teamBId
+  ? bracketTeamById.get(game.teamBId)
+  : sourcePickB?.pickedTeamId
+    ? bracketTeamById.get(sourcePickB.pickedTeamId)
+    : null;
+
+const savedPick = bracketPickByGameId.get(game.id);
 
                           return (
                             <div

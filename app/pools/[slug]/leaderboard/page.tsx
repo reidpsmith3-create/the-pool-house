@@ -28,6 +28,27 @@ type PageProps = {
     tab?: string;
   }>;
 };
+type BracketTeamDisplay = {
+  id: string;
+  name: string;
+  seed: number | null;
+};
+
+type BracketLeaderboardPick = {
+  name: string;
+  groupName: string;
+  position: null;
+  displayPosition: string;
+  bonus: number;
+  pointsEarned: number;
+  teamA: BracketTeamDisplay | null | undefined;
+  teamB: BracketTeamDisplay | null | undefined;
+  pickedTeam: BracketTeamDisplay | null | undefined;
+  winnerTeam: BracketTeamDisplay | null | undefined;
+  gameId: string;
+  roundName: string;
+  gameNumber: number;
+};
 
 function formatGolfScore(scoreValue: unknown) {
   if (scoreValue === null || scoreValue === undefined) return "—";
@@ -144,7 +165,6 @@ export default async function PoolLeaderboardPage({
 
   const optionById = new Map(options.map((option) => [option.id, option]));
   const groupById = new Map(groups.map((group) => [group.id, group]));
-
   const resultByOptionId = new Map(
     results.map((result) => [result.pickOptionId, result])
   );
@@ -152,11 +172,9 @@ export default async function PoolLeaderboardPage({
   const bracketTeamById = new Map(
     bracketTeamRows.map((team) => [team.id, team])
   );
-
   const bracketGameById = new Map(
     bracketGameRows.map((game) => [game.id, game])
   );
-
   const bracketRuleByRoundKey = new Map(
     bracketRuleRows.map((rule) => [rule.roundKey, rule])
   );
@@ -196,9 +214,41 @@ export default async function PoolLeaderboardPage({
 
         const selectedPicks = entryBracketPicks.map((pick) => {
           const game = bracketGameById.get(pick.bracketGameId);
-          const team = pick.pickedTeamId
+
+          const sourcePickA = game?.sourceGameAId
+            ? entryBracketPicks.find(
+                (entryPick) =>
+                  entryPick.bracketGameId === game.sourceGameAId
+              )
+            : null;
+
+          const sourcePickB = game?.sourceGameBId
+            ? entryBracketPicks.find(
+                (entryPick) =>
+                  entryPick.bracketGameId === game.sourceGameBId
+              )
+            : null;
+
+          const teamA = game?.teamAId
+            ? bracketTeamById.get(game.teamAId)
+            : sourcePickA?.pickedTeamId
+              ? bracketTeamById.get(sourcePickA.pickedTeamId)
+              : null;
+
+          const teamB = game?.teamBId
+            ? bracketTeamById.get(game.teamBId)
+            : sourcePickB?.pickedTeamId
+              ? bracketTeamById.get(sourcePickB.pickedTeamId)
+              : null;
+
+          const pickedTeam = pick.pickedTeamId
             ? bracketTeamById.get(pick.pickedTeamId)
             : null;
+
+          const winnerTeam = game?.winnerTeamId
+            ? bracketTeamById.get(game.winnerTeamId)
+            : null;
+
           const rule = game ? bracketRuleByRoundKey.get(game.roundKey) : null;
           const points = rule?.points ?? 0;
           const isCorrect =
@@ -206,7 +256,9 @@ export default async function PoolLeaderboardPage({
             game?.winnerTeamId === pick.pickedTeamId;
 
           return {
-            name: team ? `${team.seed ?? "—"} ${team.name}` : "No Pick",
+            name: pickedTeam
+              ? `${pickedTeam.seed ?? "—"} ${pickedTeam.name}`
+              : "No Pick",
             groupName: game
               ? `${game.roundName} · Game ${game.gameNumber}`
               : "Bracket Pick",
@@ -218,6 +270,13 @@ export default async function PoolLeaderboardPage({
                 : "Pending",
             bonus: 0,
             pointsEarned: isCorrect ? points : 0,
+            teamA,
+            teamB,
+            pickedTeam,
+            winnerTeam,
+            gameId: game?.id ?? pick.bracketGameId,
+            roundName: game?.roundName ?? "Round",
+            gameNumber: game?.gameNumber ?? 0,
           };
         });
 
@@ -505,6 +564,97 @@ export default async function PoolLeaderboardPage({
 
                     {standing.selectedPicks.length === 0 ? (
                       <p className="text-sm text-zinc-400">No picks saved.</p>
+                    ) : isBracketPool ? (
+                      <div className="overflow-x-auto pb-2">
+                        <div className="flex min-w-max gap-3">
+                          {Array.from(
+                            new Map(
+                              (standing.selectedPicks as BracketLeaderboardPick[]).map((pick) => [
+  pick.roundName,
+  pick.roundName,
+])
+                            ).values()
+                          ).map((roundName) => {
+                            const roundPicks = (standing.selectedPicks as BracketLeaderboardPick[])
+  .filter((pick) => pick.roundName === roundName)
+  .sort((a, b) => a.gameNumber - b.gameNumber);
+
+                            return (
+                              <div key={roundName} className="w-64 shrink-0">
+                                <div className="mb-3 rounded-2xl bg-black/30 px-4 py-3">
+                                  <p className="text-sm font-black uppercase text-amber-300">
+                                    {roundName}
+                                  </p>
+                                </div>
+
+                                <div className="space-y-3">
+                                  {roundPicks.map((pick) => (
+                                    <div
+                                      key={`${standing.entry.id}-${pick.gameId}`}
+                                      className="rounded-2xl border border-zinc-700 bg-zinc-900 p-3"
+                                    >
+                                      <p className="mb-2 text-[10px] font-black uppercase text-zinc-500">
+                                        Game {pick.gameNumber}
+                                      </p>
+
+                                      <div className="space-y-2">
+                                        {[pick.teamA, pick.teamB].map(
+                                          (team, teamIndex) => {
+                                            const isPicked =
+                                              pick.pickedTeam?.id === team?.id;
+                                            const isWinner =
+                                              pick.winnerTeam?.id === team?.id;
+
+                                            return (
+                                              <div
+                                                key={
+                                                  team?.id ??
+                                                  `${pick.gameId}-${teamIndex}`
+                                                }
+                                                className={
+                                                  isPicked
+                                                    ? "rounded-xl border border-amber-300/50 bg-amber-300/10 px-3 py-2"
+                                                    : "rounded-xl border border-zinc-700 bg-black/20 px-3 py-2"
+                                                }
+                                              >
+                                                <div className="flex items-center justify-between gap-2">
+                                                  <span className="truncate text-sm font-bold">
+                                                    {team
+                                                      ? `${team.seed ?? "—"} ${
+                                                          team.name
+                                                        }`
+                                                      : "Winner TBD"}
+                                                  </span>
+
+                                                  {isWinner && (
+                                                    <span className="text-[10px] font-black uppercase text-emerald-300">
+                                                      Won
+                                                    </span>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            );
+                                          }
+                                        )}
+                                      </div>
+
+                                      <div className="mt-2 flex items-center justify-between gap-3">
+                                        <p className="text-[11px] font-bold uppercase text-amber-300">
+                                          Pick:{" "}
+                                          {pick.pickedTeam?.name ?? "No pick"}
+                                        </p>
+                                        <p className="text-[11px] font-black uppercase text-emerald-300">
+                                          {pick.displayPosition}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     ) : (
                       standing.selectedPicks.map((pick, pickIndex) => (
                         <div
@@ -517,12 +667,6 @@ export default async function PoolLeaderboardPage({
 
                           <div className="flex justify-between gap-4">
                             <p className="text-sm text-zinc-100">{pick.name}</p>
-
-                            {isBracketPool && (
-                              <p className="shrink-0 text-xs font-black uppercase text-emerald-300">
-                                {pick.displayPosition}
-                              </p>
-                            )}
                           </div>
 
                           {isGolfPool && (

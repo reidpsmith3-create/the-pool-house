@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 import { db } from "@/db";
@@ -20,9 +20,7 @@ export async function POST(request: Request, context: RouteContext) {
   const currentUser = await getCurrentUser();
   const isAdmin = await getIsAdmin();
 
-  if (!currentUser && !isAdmin) {
-    redirect("/");
-  }
+  if (!currentUser && !isAdmin) redirect("/");
 
   const entryRows = await db
     .select({ entry: entries, pool: pools })
@@ -32,10 +30,7 @@ export async function POST(request: Request, context: RouteContext) {
     .limit(1);
 
   const row = entryRows[0];
-
-  if (!row) {
-    redirect("/");
-  }
+  if (!row) redirect("/");
 
   if (row.pool.poolType !== "bracket") {
     redirect(`/entries/${row.entry.id}`);
@@ -58,7 +53,8 @@ export async function POST(request: Request, context: RouteContext) {
   const games = await db
     .select()
     .from(bracketGames)
-    .where(eq(bracketGames.poolId, row.pool.id));
+    .where(eq(bracketGames.poolId, row.pool.id))
+    .orderBy(asc(bracketGames.roundOrder), asc(bracketGames.gameNumber));
 
   const teams = await db
     .select()
@@ -66,6 +62,7 @@ export async function POST(request: Request, context: RouteContext) {
     .where(eq(bracketTeams.poolId, row.pool.id));
 
   const validTeamIds = new Set(teams.map((team) => team.id));
+  const pickedTeamByGameId = new Map<string, string>();
 
   const picksToInsert: (typeof bracketPicks.$inferInsert)[] = [];
 
@@ -75,9 +72,22 @@ export async function POST(request: Request, context: RouteContext) {
     if (!pickedTeamId) continue;
     if (!validTeamIds.has(pickedTeamId)) continue;
 
-    if (pickedTeamId !== game.teamAId && pickedTeamId !== game.teamBId) {
+    const sourcePickA = game.sourceGameAId
+      ? pickedTeamByGameId.get(game.sourceGameAId)
+      : null;
+
+    const sourcePickB = game.sourceGameBId
+      ? pickedTeamByGameId.get(game.sourceGameBId)
+      : null;
+
+    const availableTeamAId = game.teamAId ?? sourcePickA ?? null;
+    const availableTeamBId = game.teamBId ?? sourcePickB ?? null;
+
+    if (pickedTeamId !== availableTeamAId && pickedTeamId !== availableTeamBId) {
       continue;
     }
+
+    pickedTeamByGameId.set(game.id, pickedTeamId);
 
     picksToInsert.push({
       poolId: row.pool.id,
@@ -88,9 +98,7 @@ export async function POST(request: Request, context: RouteContext) {
     });
   }
 
-  await db
-    .delete(bracketPicks)
-    .where(eq(bracketPicks.entryId, row.entry.id));
+  await db.delete(bracketPicks).where(eq(bracketPicks.entryId, row.entry.id));
 
   if (picksToInsert.length > 0) {
     await db.insert(bracketPicks).values(picksToInsert);

@@ -13,13 +13,14 @@ import { getIsAdmin } from "@/lib/auth-helpers";
 
 type PageProps = {
   params: Promise<{ slug: string }>;
-searchParams: Promise<{
-  added?: string;
-  generated?: string;
-  cleared?: string;
-  winnersUpdated?: string;
-  scoringUpdated?: string;
-}>;
+  searchParams: Promise<{
+    added?: string;
+    generated?: string;
+    cleared?: string;
+    winnersUpdated?: string;
+    scoringUpdated?: string;
+    scoreUpdated?: string;
+  }>;
 };
 
 export default async function BracketSetupPage({
@@ -30,8 +31,14 @@ export default async function BracketSetupPage({
   if (!isAdmin) redirect("/");
 
   const { slug } = await params;
-    const { added, generated, cleared, winnersUpdated, scoringUpdated } =
-  await searchParams;
+  const {
+  added,
+  generated,
+  cleared,
+  winnersUpdated,
+  scoringUpdated,
+  scoreUpdated,
+} = await searchParams;
 
   const poolRows = await db
     .select()
@@ -70,18 +77,20 @@ export default async function BracketSetupPage({
         <p className="mt-2 text-sm text-zinc-400">{pool.title}</p>
 
         {(added === "1" ||
-          generated === "1" ||
-          cleared === "1" ||
-          winnersUpdated === "1" ||
-scoringUpdated === "1") && (
-          <div className="mt-5 rounded-3xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-200">
-            {added === "1" && "Team added."}
-            {generated === "1" && "Bracket generated."}
-            {cleared === "1" && "Bracket data cleared."}
-                        {winnersUpdated === "1" && "Winners updated."}
-                        {scoringUpdated === "1" && "Scoring updated."}
-          </div>
-        )}
+  generated === "1" ||
+  cleared === "1" ||
+  winnersUpdated === "1" ||
+  scoringUpdated === "1" ||
+  scoreUpdated === "1") && (
+  <div className="mt-5 rounded-3xl border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm font-bold text-emerald-200">
+    {added === "1" && "Team added."}
+    {generated === "1" && "Bracket generated."}
+    {cleared === "1" && "Bracket data cleared."}
+    {winnersUpdated === "1" && "Winners updated."}
+    {scoringUpdated === "1" && "Scoring updated."}
+    {scoreUpdated === "1" && "Bracket scores computed."}
+  </div>
+)}
 
         <form
           action={`/api/admin/pools/${pool.slug}/bracket/teams/create`}
@@ -258,7 +267,15 @@ scoringUpdated === "1") && (
     </button>
   </form>
 )}
-
+<form
+  action={`/api/admin/pools/${pool.slug}/bracket/score`}
+  method="post"
+  className="mt-6"
+>
+  <button className="w-full rounded-2xl bg-emerald-300 px-4 py-4 text-sm font-black uppercase tracking-wide text-zinc-950">
+    Compute Bracket Scores
+  </button>
+</form>
         <form
           action={`/api/admin/pools/${pool.slug}/bracket/clear`}
           method="post"
