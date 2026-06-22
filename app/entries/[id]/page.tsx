@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
@@ -9,6 +9,9 @@ import {
 
 import { db } from "@/db";
 import {
+  bracketGames,
+  bracketPicks,
+  bracketTeams,
   entries,
   entryPicks,
   leaderboardResults,
@@ -40,6 +43,7 @@ export default async function EntryPage({ params, searchParams }: PageProps) {
   if (!row) notFound();
 
   const isGolfPool = row.pool.poolType === "golf";
+  const isBracketPool = row.pool.poolType === "bracket";
 
   const golfScoringSettings =
     row.pool.scoringSettings && typeof row.pool.scoringSettings === "object"
@@ -56,7 +60,7 @@ export default async function EntryPage({ params, searchParams }: PageProps) {
     .select()
     .from(pickGroups)
     .where(eq(pickGroups.poolId, row.pool.id))
-    .orderBy(pickGroups.sortOrder);
+    .orderBy(asc(pickGroups.sortOrder));
 
   const options = await db
     .select()
@@ -75,61 +79,115 @@ export default async function EntryPage({ params, searchParams }: PageProps) {
         .where(eq(leaderboardResults.poolId, row.pool.id))
     : [];
 
-    const savedPicksByOptionId = new Map(
+  const bracketTeamRows = isBracketPool
+    ? await db
+        .select()
+        .from(bracketTeams)
+        .where(eq(bracketTeams.poolId, row.pool.id))
+        .orderBy(asc(bracketTeams.seed))
+    : [];
+
+  const bracketGameRows = isBracketPool
+    ? await db
+        .select()
+        .from(bracketGames)
+        .where(eq(bracketGames.poolId, row.pool.id))
+        .orderBy(asc(bracketGames.roundOrder), asc(bracketGames.gameNumber))
+    : [];
+
+  const savedBracketPicks = isBracketPool
+    ? await db
+        .select()
+        .from(bracketPicks)
+        .where(eq(bracketPicks.entryId, row.entry.id))
+    : [];
+
+  const bracketTeamById = new Map(
+    bracketTeamRows.map((team) => [team.id, team])
+  );
+
+  const bracketPickByGameId = new Map(
+    savedBracketPicks.map((pick) => [pick.bracketGameId, pick])
+  );
+
+  const bracketGamesByRound = new Map<string, typeof bracketGameRows>();
+
+  for (const game of bracketGameRows) {
+    const existing = bracketGamesByRound.get(game.roundName) ?? [];
+    existing.push(game);
+    bracketGamesByRound.set(game.roundName, existing);
+  }
+
+  const savedPicksByOptionId = new Map(
     savedPicks.map((pick) => [pick.pickOptionId, pick])
   );
 
   const savedPickIds = new Set(savedPicks.map((pick) => pick.pickOptionId));
-  const selectedOptions = options.filter((option) => savedPickIds.has(option.id));
+  const selectedOptions = options.filter((option) =>
+    savedPickIds.has(option.id)
+  );
 
   const resultByPickOptionId = new Map(
     results.map((result) => [result.pickOptionId, result])
   );
 
-const selectedPickDetails = groups.flatMap((group) => {
-  const selectedForGroup = selectedOptions.filter(
-    (option) => option.groupId === group.id
-  );
+  const selectedPickDetails = groups.flatMap((group) => {
+    const selectedForGroup = selectedOptions.filter(
+      (option) => option.groupId === group.id
+    );
 
-  return selectedForGroup.map((selected) => {
-    const result = isGolfPool ? resultByPickOptionId.get(selected.id) : null;
+    return selectedForGroup.map((selected) => {
+      const result = isGolfPool ? resultByPickOptionId.get(selected.id) : null;
 
-    const position = result?.position ?? null;
-    const bonus =
-      isGolfPool && typeof position === "number"
-        ? getGolfBonus(position, golfScoringSettings)
-        : 0;
+      const position = result?.position ?? null;
+      const bonus =
+        isGolfPool && typeof position === "number"
+          ? getGolfBonus(position, golfScoringSettings)
+          : 0;
 
-    const savedPick = savedPicksByOptionId.get(selected.id);
+      const savedPick = savedPicksByOptionId.get(selected.id);
+
+      return {
+        group,
+        selected,
+        result,
+        position,
+        bonus,
+        pickValue: savedPick?.pickValue ?? null,
+      };
+    });
+  });
+
+  const savedBracketPickDetails = savedBracketPicks.map((pick) => {
+    const game = bracketGameRows.find((gameRow) => gameRow.id === pick.bracketGameId);
+    const team = pick.pickedTeamId
+      ? bracketTeamById.get(pick.pickedTeamId)
+      : null;
 
     return {
-      group,
-      selected,
-      result,
-      position,
-      bonus,
-      pickValue: savedPick?.pickValue ?? null,
+      pick,
+      game,
+      team,
     };
   });
-});
 
-const golfScore = isGolfPool
-  ? calculateGolfEntryScore(
-      selectedPickDetails.map((item) => ({
-        position: item.position,
-        bonus: item.bonus,
-        score:
-          typeof item.position === "number"
-            ? item.position - item.bonus
-            : null,
-      })),
-      golfScoringSettings
-    )
-  : null;
+  const golfScore = isGolfPool
+    ? calculateGolfEntryScore(
+        selectedPickDetails.map((item) => ({
+          position: item.position,
+          bonus: item.bonus,
+          score:
+            typeof item.position === "number"
+              ? item.position - item.bonus
+              : null,
+        })),
+        golfScoringSettings
+      )
+    : null;
 
-const basePositionScore = golfScore?.baseScore ?? null;
-const totalBonus = golfScore?.totalBonus ?? 0;
-const finalGolfScore = golfScore?.totalScore ?? null;
+  const basePositionScore = golfScore?.baseScore ?? null;
+  const totalBonus = golfScore?.totalBonus ?? 0;
+  const finalGolfScore = golfScore?.totalScore ?? null;
 
   const scoreLabel = isGolfPool ? "Final Score" : "Score";
 
@@ -137,7 +195,11 @@ const finalGolfScore = golfScore?.totalScore ?? null;
     <main className="min-h-screen bg-[#0d0f12] px-5 py-8 text-zinc-50">
       <div className="mx-auto max-w-md">
         <div className="mb-6 overflow-hidden rounded-[2rem] border border-zinc-700/70 bg-black">
-          <img src="/pool-house-logo.png" alt="The Pool House" className="w-full" />
+          <img
+            src="/pool-house-logo.png"
+            alt="The Pool House"
+            className="w-full"
+          />
         </div>
 
         {saved === "1" && (
@@ -222,7 +284,7 @@ const finalGolfScore = golfScore?.totalScore ?? null;
           </div>
         </div>
 
-        {selectedPickDetails.length > 0 && (
+        {!isBracketPool && selectedPickDetails.length > 0 && (
           <div className="mt-5 rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -247,10 +309,8 @@ const finalGolfScore = golfScore?.totalScore ?? null;
             </div>
 
             <div className="mt-4 space-y-3">
-              {selectedPickDetails.map(({ group, selected, result, bonus, pickValue }) => {
-                if (!selected) return null;
-
-                return (
+              {selectedPickDetails.map(
+                ({ group, selected, result, bonus, pickValue }) => (
                   <div
                     key={`${group.id}-${selected.id}`}
                     className="rounded-2xl border border-zinc-700 bg-zinc-900 p-4"
@@ -275,13 +335,138 @@ const finalGolfScore = golfScore?.totalScore ?? null;
                       {pickValue || selected.displayName || selected.name}
                     </p>
                   </div>
-                );
-              })}
+                )
+              )}
             </div>
           </div>
         )}
 
-        {picksAreLocked ? (
+        {isBracketPool && savedBracketPickDetails.length > 0 && (
+          <div className="mt-5 rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5">
+            <h2 className="text-lg font-black">Your Bracket Picks</h2>
+
+            <div className="mt-4 space-y-3">
+              {savedBracketPickDetails.map(({ pick, game, team }) => (
+                <div
+                  key={pick.id}
+                  className="rounded-2xl border border-zinc-700 bg-zinc-900 p-4"
+                >
+                  <p className="text-xs font-black uppercase text-zinc-500">
+                    {game?.roundName ?? "Round"} · Game{" "}
+                    {game?.gameNumber ?? "—"}
+                  </p>
+                  <p className="mt-2 text-lg font-black">
+                    {team ? `${team.seed ?? "—"} ${team.name}` : "No pick"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {isBracketPool ? (
+          <form
+            action={`/api/entries/${row.entry.id}/bracket-picks`}
+            method="post"
+            className="mt-5 space-y-5"
+          >
+            {bracketGameRows.length === 0 ? (
+              <div className="rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5">
+                <h2 className="text-lg font-black">No Bracket Yet</h2>
+                <p className="mt-2 text-sm text-zinc-400">
+                  This pool does not have a generated bracket yet.
+                </p>
+              </div>
+            ) : (
+              Array.from(bracketGamesByRound.entries()).map(
+                ([roundName, games]) => (
+                  <section
+                    key={roundName}
+                    className="rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5"
+                  >
+                    <h2 className="text-lg font-black">{roundName}</h2>
+
+                    <div className="mt-4 space-y-4">
+                      {games
+                        .sort((a, b) => a.gameNumber - b.gameNumber)
+                        .map((game) => {
+                          const teamA = game.teamAId
+                            ? bracketTeamById.get(game.teamAId)
+                            : null;
+                          const teamB = game.teamBId
+                            ? bracketTeamById.get(game.teamBId)
+                            : null;
+                          const savedPick = bracketPickByGameId.get(game.id);
+
+                          return (
+                            <div
+                              key={game.id}
+                              className="rounded-2xl border border-zinc-700 bg-zinc-900 p-4"
+                            >
+                              <p className="text-xs font-black uppercase text-zinc-500">
+                                Game {game.gameNumber}
+                              </p>
+
+                              <div className="mt-3 grid grid-cols-1 gap-2">
+                                <label className="flex items-center gap-3 rounded-2xl border border-zinc-700 bg-black/20 p-3">
+                                  <input
+                                    type="radio"
+                                    name={`game-${game.id}`}
+                                    value={teamA?.id ?? ""}
+                                    disabled={!teamA || picksAreLocked}
+                                    defaultChecked={
+                                      savedPick?.pickedTeamId === teamA?.id
+                                    }
+                                  />
+                                  <span className="font-bold">
+                                    {teamA
+                                      ? `${teamA.seed ?? "—"} ${teamA.name}`
+                                      : "Winner TBD"}
+                                  </span>
+                                </label>
+
+                                <label className="flex items-center gap-3 rounded-2xl border border-zinc-700 bg-black/20 p-3">
+                                  <input
+                                    type="radio"
+                                    name={`game-${game.id}`}
+                                    value={teamB?.id ?? ""}
+                                    disabled={!teamB || picksAreLocked}
+                                    defaultChecked={
+                                      savedPick?.pickedTeamId === teamB?.id
+                                    }
+                                  />
+                                  <span className="font-bold">
+                                    {teamB
+                                      ? `${teamB.seed ?? "—"} ${teamB.name}`
+                                      : "Winner TBD"}
+                                  </span>
+                                </label>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </section>
+                )
+              )
+            )}
+
+            {picksAreLocked ? (
+              <div className="rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5">
+                <h2 className="text-lg font-black">Picks Locked</h2>
+                <p className="mt-2 text-sm text-zinc-400">
+                  The entry deadline has passed. Picks can no longer be changed.
+                </p>
+              </div>
+            ) : (
+              bracketGameRows.length > 0 && (
+                <button className="w-full rounded-2xl bg-amber-300 px-4 py-4 text-sm font-black uppercase tracking-wide text-zinc-950">
+                  Save Bracket Picks
+                </button>
+              )
+            )}
+          </form>
+        ) : picksAreLocked ? (
           <div className="mt-5 rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5">
             <h2 className="text-lg font-black">Picks Locked</h2>
             <p className="mt-2 text-sm text-zinc-400">
@@ -324,11 +509,11 @@ const finalGolfScore = golfScore?.totalScore ?? null;
                           className="flex items-center gap-3 rounded-2xl border border-zinc-700 bg-zinc-900 p-4"
                         >
                           <input
-  type={group.maxPicks > 1 ? "checkbox" : "radio"}
-  name={`group-${group.id}`}
-  value={option.id}
-  defaultChecked={savedPickIds.has(option.id)}
-/>
+                            type={group.maxPicks > 1 ? "checkbox" : "radio"}
+                            name={`group-${group.id}`}
+                            value={option.id}
+                            defaultChecked={savedPickIds.has(option.id)}
+                          />
                           <span className="font-bold">
                             {option.displayName ?? option.name}
                           </span>

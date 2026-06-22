@@ -220,6 +220,7 @@ const actions = [
               <div>{label}</div>
 {pool.poolType !== "golf" &&
   pool.poolType !== "predictions" &&
+  pool.poolType !== "bracket" &&
   label.includes("Setup") && (
     <div className="mt-2 text-[10px] font-bold text-zinc-500">
       Coming Soon

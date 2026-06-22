@@ -9,6 +9,10 @@ import {
 
 import { db } from "@/db";
 import {
+  bracketGames,
+  bracketPicks,
+  bracketScoringRules,
+  bracketTeams,
   entries,
   entryPicks,
   leaderboardResults,
@@ -68,13 +72,15 @@ export default async function PoolLeaderboardPage({
     notFound();
   }
 
+  const isGolfPool = pool.poolType === "golf";
+  const isBracketPool = pool.poolType === "bracket";
+
   const sourceRows = await db
     .select()
     .from(leaderboardSources)
     .where(eq(leaderboardSources.poolId, pool.id));
 
   const activeSource = sourceRows.find((source) => source.isActive);
-  const isGolfPool = pool.poolType === "golf";
 
   const golfScoringSettings =
     pool.scoringSettings && typeof pool.scoringSettings === "object"
@@ -108,11 +114,51 @@ export default async function PoolLeaderboardPage({
         .where(eq(leaderboardResults.poolId, pool.id))
     : [];
 
+  const bracketGameRows = isBracketPool
+    ? await db
+        .select()
+        .from(bracketGames)
+        .where(eq(bracketGames.poolId, pool.id))
+    : [];
+
+  const bracketPickRows = isBracketPool
+    ? await db
+        .select()
+        .from(bracketPicks)
+        .where(eq(bracketPicks.poolId, pool.id))
+    : [];
+
+  const bracketTeamRows = isBracketPool
+    ? await db
+        .select()
+        .from(bracketTeams)
+        .where(eq(bracketTeams.poolId, pool.id))
+    : [];
+
+  const bracketRuleRows = isBracketPool
+    ? await db
+        .select()
+        .from(bracketScoringRules)
+        .where(eq(bracketScoringRules.poolId, pool.id))
+    : [];
+
   const optionById = new Map(options.map((option) => [option.id, option]));
   const groupById = new Map(groups.map((group) => [group.id, group]));
 
   const resultByOptionId = new Map(
     results.map((result) => [result.pickOptionId, result])
+  );
+
+  const bracketTeamById = new Map(
+    bracketTeamRows.map((team) => [team.id, team])
+  );
+
+  const bracketGameById = new Map(
+    bracketGameRows.map((game) => [game.id, game])
+  );
+
+  const bracketRuleByRoundKey = new Map(
+    bracketRuleRows.map((rule) => [rule.roundKey, rule])
   );
 
   const tournamentLeaderboard = results
@@ -143,6 +189,53 @@ export default async function PoolLeaderboardPage({
 
   const standings = poolEntries
     .map((entry) => {
+      if (isBracketPool) {
+        const entryBracketPicks = bracketPickRows.filter(
+          (pick) => pick.entryId === entry.id
+        );
+
+        const selectedPicks = entryBracketPicks.map((pick) => {
+          const game = bracketGameById.get(pick.bracketGameId);
+          const team = pick.pickedTeamId
+            ? bracketTeamById.get(pick.pickedTeamId)
+            : null;
+          const rule = game ? bracketRuleByRoundKey.get(game.roundKey) : null;
+          const points = rule?.points ?? 0;
+          const isCorrect =
+            Boolean(game?.winnerTeamId) &&
+            game?.winnerTeamId === pick.pickedTeamId;
+
+          return {
+            name: team ? `${team.seed ?? "—"} ${team.name}` : "No Pick",
+            groupName: game
+              ? `${game.roundName} · Game ${game.gameNumber}`
+              : "Bracket Pick",
+            position: null,
+            displayPosition: isCorrect
+              ? `+${points} pts`
+              : game?.winnerTeamId
+                ? "0 pts"
+                : "Pending",
+            bonus: 0,
+            pointsEarned: isCorrect ? points : 0,
+          };
+        });
+
+        const totalScore = selectedPicks.reduce(
+          (sum, pick) => sum + pick.pointsEarned,
+          0
+        );
+
+        return {
+          entry,
+          selectedPicks,
+          baseScore: null,
+          totalBonus: 0,
+          totalScore,
+          hasCompleteScore: true,
+        };
+      }
+
       const entryPickRows = picks.filter((pick) => pick.entryId === entry.id);
 
       const selectedPicks = entryPickRows.map((pick) => {
@@ -212,12 +305,15 @@ export default async function PoolLeaderboardPage({
       };
     })
     .sort((a, b) => {
-      if (a.hasCompleteScore && !b.hasCompleteScore) return -1;
-      if (!a.hasCompleteScore && b.hasCompleteScore) return 1;
       if (a.totalScore === null && b.totalScore === null) return 0;
       if (a.totalScore === null) return 1;
       if (b.totalScore === null) return -1;
-      return Number(a.totalScore) - Number(b.totalScore);
+
+      if (isGolfPool) {
+        return Number(a.totalScore) - Number(b.totalScore);
+      }
+
+      return Number(b.totalScore) - Number(a.totalScore);
     });
 
   return (
@@ -239,7 +335,9 @@ export default async function PoolLeaderboardPage({
           <p className="mt-2 text-sm text-zinc-400">
             {isGolfPool
               ? "Lowest total wins. Golfers are scored by tournament position, minus eligible bonuses."
-              : "Leaderboard for this pool."}
+              : isBracketPool
+                ? "Highest score wins. Correct bracket picks earn points by round."
+                : "Leaderboard for this pool."}
           </p>
 
           {isGolfPool && activeSource?.lastSyncedAt && (
@@ -375,7 +473,11 @@ export default async function PoolLeaderboardPage({
                           {standing.totalScore ?? "—"}
                         </p>
                         <p className="text-xs uppercase text-zinc-500">
-                          {isGolfPool ? "Final Score" : "Score"}
+                          {isGolfPool
+                            ? "Final Score"
+                            : isBracketPool
+                              ? "Points"
+                              : "Score"}
                         </p>
                       </div>
                     </div>
@@ -413,7 +515,15 @@ export default async function PoolLeaderboardPage({
                             {pick.groupName}
                           </p>
 
-                          <p className="text-sm text-zinc-100">{pick.name}</p>
+                          <div className="flex justify-between gap-4">
+                            <p className="text-sm text-zinc-100">{pick.name}</p>
+
+                            {isBracketPool && (
+                              <p className="shrink-0 text-xs font-black uppercase text-emerald-300">
+                                {pick.displayPosition}
+                              </p>
+                            )}
+                          </div>
 
                           {isGolfPool && (
                             <p className="mt-1 text-xs font-bold text-zinc-400">

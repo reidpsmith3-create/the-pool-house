@@ -216,3 +216,71 @@ export const payoutRules = pgTable("payout_rules", {
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+export const bracketTeams = pgTable("bracket_teams", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  poolId: uuid("pool_id")
+    .references(() => pools.id)
+    .notNull(),
+
+  name: text("name").notNull(),
+  seed: integer("seed"),
+  region: text("region"),
+  logoUrl: text("logo_url"),
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const bracketGames = pgTable("bracket_games", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  poolId: uuid("pool_id")
+    .references(() => pools.id)
+    .notNull(),
+
+  roundKey: text("round_key").notNull(),
+  roundName: text("round_name").notNull(),
+  roundOrder: integer("round_order").notNull(),
+  gameNumber: integer("game_number").notNull(),
+
+  teamAId: uuid("team_a_id").references(() => bracketTeams.id),
+  teamBId: uuid("team_b_id").references(() => bracketTeams.id),
+  winnerTeamId: uuid("winner_team_id").references(() => bracketTeams.id),
+
+  sourceGameAId: uuid("source_game_a_id"),
+  sourceGameBId: uuid("source_game_b_id"),
+
+  status: text("status").default("scheduled").notNull(),
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const bracketPicks = pgTable("bracket_picks", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  poolId: uuid("pool_id")
+    .references(() => pools.id)
+    .notNull(),
+  entryId: uuid("entry_id")
+    .references(() => entries.id)
+    .notNull(),
+  bracketGameId: uuid("bracket_game_id")
+    .references(() => bracketGames.id)
+    .notNull(),
+  pickedTeamId: uuid("picked_team_id").references(() => bracketTeams.id),
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const bracketScoringRules = pgTable("bracket_scoring_rules", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  poolId: uuid("pool_id")
+    .references(() => pools.id)
+    .notNull(),
+
+  roundKey: text("round_key").notNull(),
+  roundName: text("round_name").notNull(),
+  roundOrder: integer("round_order").notNull(),
+  points: integer("points").default(1).notNull(),
+
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
