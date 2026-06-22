@@ -200,9 +200,17 @@ export default async function Home() {
                   key={pool.id}
                   className="flex items-center gap-4 rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-4"
                 >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-black/30 text-2xl">
-                    🏆
-                  </div>
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black/30 text-2xl">
+  {pool.logoUrl ? (
+    <img
+      src={pool.logoUrl}
+      alt={`${pool.title} logo`}
+      className="h-full w-full object-cover"
+    />
+  ) : (
+    "🏆"
+  )}
+</div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-lg font-black">{pool.title}</p>
                     <p className="mt-1 text-sm font-bold text-amber-300">
