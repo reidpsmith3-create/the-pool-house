@@ -75,6 +75,10 @@ export default async function EntryPage({ params, searchParams }: PageProps) {
         .where(eq(leaderboardResults.poolId, row.pool.id))
     : [];
 
+    const savedPicksByOptionId = new Map(
+    savedPicks.map((pick) => [pick.pickOptionId, pick])
+  );
+
   const savedPickIds = new Set(savedPicks.map((pick) => pick.pickOptionId));
   const selectedOptions = options.filter((option) => savedPickIds.has(option.id));
 
@@ -96,12 +100,15 @@ const selectedPickDetails = groups.flatMap((group) => {
         ? getGolfBonus(position, golfScoringSettings)
         : 0;
 
+    const savedPick = savedPicksByOptionId.get(selected.id);
+
     return {
       group,
       selected,
       result,
       position,
       bonus,
+      pickValue: savedPick?.pickValue ?? null,
     };
   });
 });
@@ -240,7 +247,7 @@ const finalGolfScore = golfScore?.totalScore ?? null;
             </div>
 
             <div className="mt-4 space-y-3">
-              {selectedPickDetails.map(({ group, selected, result, bonus }) => {
+              {selectedPickDetails.map(({ group, selected, result, bonus, pickValue }) => {
                 if (!selected) return null;
 
                 return (
@@ -265,7 +272,7 @@ const finalGolfScore = golfScore?.totalScore ?? null;
                     </div>
 
                     <p className="mt-2 text-lg font-black">
-                      {selected.displayName ?? selected.name}
+                      {pickValue || selected.displayName || selected.name}
                     </p>
                   </div>
                 );

@@ -13,6 +13,7 @@ import {
   entryPicks,
   leaderboardResults,
   leaderboardSources,
+  pickGroups,
   pickOptions,
   pools,
 } from "@/db/schema";
@@ -90,6 +91,11 @@ export default async function PoolLeaderboardPage({
     .from(entryPicks)
     .where(eq(entryPicks.poolId, pool.id));
 
+  const groups = await db
+    .select()
+    .from(pickGroups)
+    .where(eq(pickGroups.poolId, pool.id));
+
   const options = await db
     .select()
     .from(pickOptions)
@@ -103,6 +109,8 @@ export default async function PoolLeaderboardPage({
     : [];
 
   const optionById = new Map(options.map((option) => [option.id, option]));
+  const groupById = new Map(groups.map((group) => [group.id, group]));
+
   const resultByOptionId = new Map(
     results.map((result) => [result.pickOptionId, result])
   );
@@ -110,8 +118,9 @@ export default async function PoolLeaderboardPage({
   const tournamentLeaderboard = results
     .map((result) => {
       const option = result.pickOptionId
-  ? optionById.get(result.pickOptionId)
-  : null;
+        ? optionById.get(result.pickOptionId)
+        : null;
+
       const metadata = getResultMetadata(result.metadata);
 
       return {
@@ -137,10 +146,17 @@ export default async function PoolLeaderboardPage({
       const entryPickRows = picks.filter((pick) => pick.entryId === entry.id);
 
       const selectedPicks = entryPickRows.map((pick) => {
-        const option = optionById.get(pick.pickOptionId);
-        const result = isGolfPool
-          ? resultByOptionId.get(pick.pickOptionId)
+        const option = pick.pickOptionId
+          ? optionById.get(pick.pickOptionId)
           : null;
+
+        const group = option?.groupId ? groupById.get(option.groupId) : null;
+
+        const result =
+          isGolfPool && pick.pickOptionId
+            ? resultByOptionId.get(pick.pickOptionId)
+            : null;
+
         const position = result?.position ?? null;
         const bonus =
           isGolfPool && typeof position === "number"
@@ -148,7 +164,8 @@ export default async function PoolLeaderboardPage({
             : 0;
 
         return {
-          name: option?.displayName ?? option?.name ?? "Unknown",
+          name: pick.pickValue || option?.displayName || option?.name || "Unknown",
+          groupName: group?.name ?? "Pick",
           position,
           displayPosition: result?.displayPosition ?? null,
           bonus,
@@ -280,43 +297,47 @@ export default async function PoolLeaderboardPage({
             ) : (
               tournamentLeaderboard.map((golfer) => (
                 <div
-  key={golfer.id}
-  className="rounded-2xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] px-4 py-3"
->
-  <div className="flex items-center justify-between gap-4">
-    <div className="min-w-0">
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-black uppercase text-zinc-400">
-          {golfer.displayPosition ?? golfer.position ?? "—"}
-        </span>
-        <h2 className="truncate text-lg font-black">{golfer.name}</h2>
-      </div>
+                  key={golfer.id}
+                  className="rounded-2xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] px-4 py-3"
+                >
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black uppercase text-zinc-400">
+                          {golfer.displayPosition ?? golfer.position ?? "—"}
+                        </span>
+                        <h2 className="truncate text-lg font-black">
+                          {golfer.name}
+                        </h2>
+                      </div>
 
-      <div className="mt-2 flex gap-3 text-[11px] font-bold uppercase text-zinc-500">
-        <span>
-          Today{" "}
-          <span className="text-zinc-200">
-            {formatGolfScore(golfer.currentRoundScore)}
-          </span>
-        </span>
+                      <div className="mt-2 flex gap-3 text-[11px] font-bold uppercase text-zinc-500">
+                        <span>
+                          Today{" "}
+                          <span className="text-zinc-200">
+                            {formatGolfScore(golfer.currentRoundScore)}
+                          </span>
+                        </span>
 
-        <span>
-          Thru{" "}
-          <span className="text-zinc-200">
-            {golfer.holesPlayed ?? "—"}
-          </span>
-        </span>
-      </div>
-    </div>
+                        <span>
+                          Thru{" "}
+                          <span className="text-zinc-200">
+                            {golfer.holesPlayed ?? "—"}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
 
-    <div className="shrink-0 text-right">
-      <p className="text-2xl font-black text-emerald-300">
-        {formatGolfScore(golfer.scoreValue)}
-      </p>
-      <p className="text-[10px] uppercase text-zinc-500">Total</p>
-    </div>
-  </div>
-</div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-2xl font-black text-emerald-300">
+                        {formatGolfScore(golfer.scoreValue)}
+                      </p>
+                      <p className="text-[10px] uppercase text-zinc-500">
+                        Total
+                      </p>
+                    </div>
+                  </div>
+                </div>
               ))
             )}
           </div>
@@ -383,18 +404,22 @@ export default async function PoolLeaderboardPage({
                     {standing.selectedPicks.length === 0 ? (
                       <p className="text-sm text-zinc-400">No picks saved.</p>
                     ) : (
-                      standing.selectedPicks.map((pick) => (
+                      standing.selectedPicks.map((pick, pickIndex) => (
                         <div
-                          key={pick.name}
-                          className="flex justify-between gap-4 text-sm"
+                          key={`${standing.entry.id}-${pick.name}-${pickIndex}`}
+                          className="border-b border-zinc-800 pb-2 last:border-b-0"
                         >
-                          <span className="text-zinc-300">{pick.name}</span>
+                          <p className="text-[10px] font-black uppercase tracking-wide text-zinc-500">
+                            {pick.groupName}
+                          </p>
+
+                          <p className="text-sm text-zinc-100">{pick.name}</p>
 
                           {isGolfPool && (
-                            <span className="font-bold text-zinc-100">
+                            <p className="mt-1 text-xs font-bold text-zinc-400">
                               {pick.displayPosition ?? pick.position ?? "—"}
                               {pick.bonus > 0 ? ` / -${pick.bonus}` : ""}
-                            </span>
+                            </p>
                           )}
                         </div>
                       ))
