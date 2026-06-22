@@ -111,8 +111,11 @@ export const pickGroups = pgTable("pick_groups", {
 
   name: text("name").notNull(),
   sortOrder: integer("sort_order").default(0).notNull(),
-  minPicks: integer("min_picks").default(0).notNull(),
+    minPicks: integer("min_picks").default(0).notNull(),
   maxPicks: integer("max_picks").default(1).notNull(),
+
+  questionType: text("question_type").default("multiple_choice_single").notNull(),
+  settings: jsonb("settings").default({}).notNull(),
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

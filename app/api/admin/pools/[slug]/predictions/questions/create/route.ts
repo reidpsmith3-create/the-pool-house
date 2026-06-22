@@ -9,6 +9,13 @@ type RouteContext = {
   params: Promise<{ slug: string }>;
 };
 
+const validQuestionTypes = new Set([
+  "multiple_choice_single",
+  "multiple_choice_multiple",
+  "blank",
+  "rank",
+]);
+
 export async function POST(request: Request, context: RouteContext) {
   const isAdmin = await getIsAdmin();
   if (!isAdmin) redirect("/");
@@ -18,8 +25,21 @@ export async function POST(request: Request, context: RouteContext) {
 
   const question = String(formData.get("question") ?? "").trim();
   const choicesText = String(formData.get("choices") ?? "").trim();
+  const rawQuestionType = String(
+    formData.get("questionType") ?? "multiple_choice_single"
+  ).trim();
 
-  if (!question || !choicesText) {
+  const questionType = validQuestionTypes.has(rawQuestionType)
+    ? rawQuestionType
+    : "multiple_choice_single";
+
+  const maxPicksValue = Number(formData.get("maxPicks") ?? 1);
+  const maxPicks =
+    Number.isInteger(maxPicksValue) && maxPicksValue > 0
+      ? maxPicksValue
+      : 1;
+
+  if (!question) {
     redirect(`/admin/pools/${slug}/predictions/setup`);
   }
 
@@ -36,6 +56,17 @@ export async function POST(request: Request, context: RouteContext) {
     redirect(`/admin/pools/${pool.slug}`);
   }
 
+  const choices = choicesText
+    .split(/\r?\n/)
+    .map((choice) => choice.trim())
+    .filter(Boolean);
+
+  const uniqueChoices = Array.from(new Set(choices));
+
+  if (questionType !== "blank" && uniqueChoices.length === 0) {
+    redirect(`/admin/pools/${pool.slug}/predictions/setup`);
+  }
+
   const existingGroups = await db
     .select()
     .from(pickGroups)
@@ -47,21 +78,21 @@ export async function POST(request: Request, context: RouteContext) {
       poolId: pool.id,
       name: question,
       sortOrder: existingGroups.length + 1,
-      minPicks: 1,
-      maxPicks: 1,
+      minPicks: questionType === "blank" ? 0 : 1,
+      maxPicks:
+        questionType === "multiple_choice_single" || questionType === "blank"
+          ? 1
+          : maxPicks,
+      questionType,
+      settings: {
+        predictionQuestion: true,
+      },
     })
     .returning();
 
   const createdGroup = createdGroups[0];
 
-  const choices = choicesText
-    .split(/\r?\n/)
-    .map((choice) => choice.trim())
-    .filter(Boolean);
-
-  const uniqueChoices = Array.from(new Set(choices));
-
-  if (uniqueChoices.length > 0) {
+  if (questionType !== "blank" && uniqueChoices.length > 0) {
     await db.insert(pickOptions).values(
       uniqueChoices.map((choice) => ({
         poolId: pool.id,

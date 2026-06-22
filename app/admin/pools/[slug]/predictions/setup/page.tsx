@@ -11,6 +11,17 @@ type PageProps = {
   searchParams: Promise<{ created?: string }>;
 };
 
+function getQuestionTypeLabel(questionType: string) {
+  const labels: Record<string, string> = {
+    multiple_choice_single: "Multiple Choice · Select One",
+    multiple_choice_multiple: "Multiple Choice · Select Multiple",
+    blank: "Blank Answer",
+    rank: "Rank Choices",
+  };
+
+  return labels[questionType] ?? questionType;
+}
+
 export default async function PredictionsSetupPage({
   params,
   searchParams,
@@ -87,10 +98,27 @@ export default async function PredictionsSetupPage({
           </label>
 
           <label className="mt-4 block">
+            <span className="text-sm font-bold">Question Type</span>
+            <select
+              name="questionType"
+              defaultValue="multiple_choice_single"
+              className="mt-2 w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-50 outline-none"
+            >
+              <option value="multiple_choice_single">
+                Multiple Choice · Select One
+              </option>
+              <option value="multiple_choice_multiple">
+                Multiple Choice · Select Multiple
+              </option>
+              <option value="blank">Blank Answer · User Types Answer</option>
+              <option value="rank">Rank Choices</option>
+            </select>
+          </label>
+
+          <label className="mt-4 block">
             <span className="text-sm font-bold">Answer Choices</span>
             <textarea
               name="choices"
-              required
               rows={8}
               placeholder={"Dodgers\nYankees\nBraves\nCubs"}
               className="mt-2 w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-50 outline-none"
@@ -98,8 +126,27 @@ export default async function PredictionsSetupPage({
           </label>
 
           <p className="mt-2 text-xs text-zinc-500">
-            Enter one answer choice per line. Users will pick one answer for this
-            question.
+            For multiple choice or rank questions, enter one choice per line. For
+            blank answer questions, leave choices empty.
+          </p>
+
+          <label className="mt-4 block">
+            <span className="text-sm font-bold">
+              Max Selections / Ranking Spots
+            </span>
+            <input
+              name="maxPicks"
+              type="number"
+              min="1"
+              defaultValue="1"
+              className="mt-2 w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-50 outline-none"
+            />
+          </label>
+
+          <p className="mt-2 text-xs text-zinc-500">
+            Use 1 for select-one or blank answer. For select-multiple, this is
+            the max number of answers. For rank, this is how many choices the
+            user ranks.
           </p>
 
           <button className="mt-5 w-full rounded-2xl bg-amber-300 px-4 py-4 text-sm font-black uppercase tracking-wide text-zinc-950">
@@ -133,8 +180,22 @@ export default async function PredictionsSetupPage({
 
                     <h3 className="mt-2 text-lg font-black">{question.name}</h3>
 
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <span className="rounded-full bg-amber-300 px-3 py-1 text-[11px] font-black uppercase text-zinc-950">
+                        {getQuestionTypeLabel(question.questionType)}
+                      </span>
+
+                      <span className="rounded-full bg-black/30 px-3 py-1 text-[11px] font-black uppercase text-zinc-400">
+                        Max {question.maxPicks}
+                      </span>
+                    </div>
+
                     <div className="mt-4 space-y-2">
-                      {questionChoices.length === 0 ? (
+                      {question.questionType === "blank" ? (
+                        <div className="rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-sm font-bold text-zinc-400">
+                          Users will type their own answer.
+                        </div>
+                      ) : questionChoices.length === 0 ? (
                         <p className="text-sm text-zinc-400">
                           No answer choices.
                         </p>
