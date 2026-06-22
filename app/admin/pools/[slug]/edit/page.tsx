@@ -59,6 +59,16 @@ const missedCutScore =
               className="mt-2 w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-50 outline-none"
             />
           </label>
+          <label className="block">
+  <span className="text-sm font-bold">Pool Logo URL</span>
+  <input
+    name="logoUrl"
+    type="url"
+    defaultValue={pool.logoUrl ?? ""}
+    placeholder="https://example.com/logo.png"
+    className="mt-2 w-full rounded-2xl border border-zinc-700 bg-zinc-900 px-4 py-3 text-zinc-50 outline-none"
+  />
+</label>
 
           <label className="block">
             <span className="text-sm font-bold">Status</span>

@@ -18,6 +18,17 @@ function getStatusLabel(status: string) {
 
   return labels[status] ?? status;
 }
+function getPoolIcon(poolType: string) {
+  const icons: Record<string, string> = {
+    golf: "⛳",
+    survivor: "🏈",
+    pickem: "🏈",
+    bracket: "🏀",
+    predictions: "🔮",
+  };
+
+  return icons[poolType] ?? "🎯";
+}
 
 function PoolCard({
   pool,
@@ -37,26 +48,39 @@ function PoolCard({
       }
       className="block rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5"
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-xs font-black uppercase text-amber-300">
-            {pool.poolType}
-          </p>
+<div className="flex items-start justify-between gap-4">
+  <div className="flex min-w-0 flex-1 gap-4">
+    <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black/30 text-2xl">
+      {pool.logoUrl ? (
+        <img
+          src={pool.logoUrl}
+          alt={`${pool.title} logo`}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        getPoolIcon(pool.poolType)
+      )}
+    </div>
 
-          <h3 className="mt-2 text-xl font-black">{pool.title}</h3>
+    <div className="min-w-0">
+      <p className="text-xs font-black uppercase text-amber-300">
+        {pool.poolType}
+      </p>
 
-          {pool.description && (
-            <p className="mt-2 line-clamp-2 text-sm text-zinc-400">
-              {pool.description}
-            </p>
-          )}
-        </div>
+      <h3 className="mt-2 text-xl font-black">{pool.title}</h3>
 
-        <span className="rounded-full bg-black/25 px-3 py-1.5 text-xs font-black uppercase text-emerald-300">
-          {getStatusLabel(pool.status)}
-        </span>
-      </div>
+      {pool.description && (
+        <p className="mt-2 line-clamp-2 text-sm text-zinc-400">
+          {pool.description}
+        </p>
+      )}
+    </div>
+  </div>
 
+  <span className="shrink-0 rounded-full bg-black/25 px-3 py-1.5 text-xs font-black uppercase text-emerald-300">
+    {getStatusLabel(pool.status)}
+  </span>
+</div>
       <div className="mt-4 grid grid-cols-3 gap-3 border-t border-zinc-700 pt-4 text-sm">
         <div>
           <p className="font-black text-zinc-100">{entryCount}</p>

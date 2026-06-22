@@ -31,6 +31,7 @@ export const pools = pgTable("pools", {
   poolType: text("pool_type").notNull(),
   description: text("description"),
   rules: text("rules"),
+  logoUrl: text("logo_url"),
 
   isPublished: boolean("is_published").default(false).notNull(),
   status: text("status").default("draft").notNull(),

@@ -31,6 +31,7 @@ export async function POST(request: Request, context: RouteContext) {
   const title = String(formData.get("title") ?? "").trim();
   const status = String(formData.get("status") ?? "draft").trim();
   const description = String(formData.get("description") ?? "").trim();
+  const logoUrl = String(formData.get("logoUrl") ?? "").trim();
   const rules = String(formData.get("rules") ?? "").trim();
 
   const entryDeadlineAtRaw = String(
@@ -98,6 +99,7 @@ const missedCutScore =
         ? new Date(entryDeadlineAtRaw)
         : null,
       scoringSettings,
+      logoUrl: logoUrl || null,
       updatedAt: new Date(),
     })
     .where(eq(pools.id, pool.id));

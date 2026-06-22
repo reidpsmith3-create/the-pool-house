@@ -148,9 +148,17 @@ export default async function Home() {
                     className={`absolute bottom-0 left-0 top-0 w-1.5 ${getPoolAccent(pool.poolType)}`}
                   />
                   <div className="flex gap-4 pl-2">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-black/30 text-2xl">
-                      {getPoolIcon(pool.poolType)}
-                    </div>
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black/30 text-2xl">
+  {pool.logoUrl ? (
+    <img
+      src={pool.logoUrl}
+      alt={`${pool.title} logo`}
+      className="h-full w-full object-cover"
+    />
+  ) : (
+    getPoolIcon(pool.poolType)
+  )}
+</div>
                     <div className="min-w-0 flex-1">
                       <h3 className="text-lg font-black leading-snug">
                         {pool.title}
