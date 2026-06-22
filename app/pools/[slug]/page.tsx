@@ -11,7 +11,17 @@ type PageProps = {
     slug: string;
   }>;
 };
+function getPoolIcon(poolType: string) {
+  const icons: Record<string, string> = {
+    golf: "⛳",
+    survivor: "🏈",
+    pickem: "🏈",
+    bracket: "🏀",
+    predictions: "🔮",
+  };
 
+  return icons[poolType] ?? "🎯";
+}
 export default async function PoolDetailPage({ params }: PageProps) {
   const { slug } = await params;
   const currentUser = await getCurrentUser();
@@ -66,17 +76,34 @@ const topFiveBonus = Number(scoringSettings.topFiveBonus ?? 0);
         </div>
 
         <div className="rounded-3xl border border-zinc-700/70 bg-gradient-to-b from-[#202226] to-[#15161a] p-5">
-          <div className="mb-5">
-            <span className="rounded-full bg-zinc-800 px-3 py-1 text-xs font-black uppercase">
-              {pool.poolType}
-            </span>
+<div className="mb-5 flex gap-5">
+  <div className="shrink-0">
+    <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-3xl bg-black/30 text-4xl">
+      {pool.logoUrl ? (
+        <img
+          src={pool.logoUrl}
+          alt={`${pool.title} logo`}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        getPoolIcon(pool.poolType)
+      )}
+    </div>
 
-            <h1 className="mt-4 text-3xl font-black">{pool.title}</h1>
+    <p className="mt-2 text-center text-xs font-black uppercase tracking-wide text-zinc-400">
+      {pool.poolType}
+    </p>
+  </div>
 
-            {pool.description && (
-              <p className="mt-3 text-zinc-300">{pool.description}</p>
-            )}
-          </div>
+  <div className="flex min-w-0 flex-1 flex-col justify-center">
+
+    <h1 className="text-3xl font-black">{pool.title}</h1>
+
+    {pool.description && (
+      <p className="mt-3 text-zinc-300">{pool.description}</p>
+    )}
+  </div>
+</div>
 
           <div className="space-y-3 border-t border-zinc-700 pt-5">
             <div className="flex justify-between">
