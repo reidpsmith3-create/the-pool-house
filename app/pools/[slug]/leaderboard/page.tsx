@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
+import BracketView from "@/components/BracketView";
 import {
   calculateGolfEntryScore,
   getGolfBonus,
@@ -565,97 +566,19 @@ export default async function PoolLeaderboardPage({
                     {standing.selectedPicks.length === 0 ? (
                       <p className="text-sm text-zinc-400">No picks saved.</p>
                     ) : isBracketPool ? (
-                      <div className="overflow-x-auto pb-2">
-                        <div className="flex min-w-max gap-3">
-                          {Array.from(
-                            new Map(
-                              (standing.selectedPicks as BracketLeaderboardPick[]).map((pick) => [
-  pick.roundName,
-  pick.roundName,
-])
-                            ).values()
-                          ).map((roundName) => {
-                            const roundPicks = (standing.selectedPicks as BracketLeaderboardPick[])
-  .filter((pick) => pick.roundName === roundName)
-  .sort((a, b) => a.gameNumber - b.gameNumber);
-
-                            return (
-                              <div key={roundName} className="w-64 shrink-0">
-                                <div className="mb-3 rounded-2xl bg-black/30 px-4 py-3">
-                                  <p className="text-sm font-black uppercase text-amber-300">
-                                    {roundName}
-                                  </p>
-                                </div>
-
-                                <div className="space-y-3">
-                                  {roundPicks.map((pick) => (
-                                    <div
-                                      key={`${standing.entry.id}-${pick.gameId}`}
-                                      className="rounded-2xl border border-zinc-700 bg-zinc-900 p-3"
-                                    >
-                                      <p className="mb-2 text-[10px] font-black uppercase text-zinc-500">
-                                        Game {pick.gameNumber}
-                                      </p>
-
-                                      <div className="space-y-2">
-                                        {[pick.teamA, pick.teamB].map(
-                                          (team, teamIndex) => {
-                                            const isPicked =
-                                              pick.pickedTeam?.id === team?.id;
-                                            const isWinner =
-                                              pick.winnerTeam?.id === team?.id;
-
-                                            return (
-                                              <div
-                                                key={
-                                                  team?.id ??
-                                                  `${pick.gameId}-${teamIndex}`
-                                                }
-                                                className={
-                                                  isPicked
-                                                    ? "rounded-xl border border-amber-300/50 bg-amber-300/10 px-3 py-2"
-                                                    : "rounded-xl border border-zinc-700 bg-black/20 px-3 py-2"
-                                                }
-                                              >
-                                                <div className="flex items-center justify-between gap-2">
-                                                  <span className="truncate text-sm font-bold">
-                                                    {team
-                                                      ? `${team.seed ?? "—"} ${
-                                                          team.name
-                                                        }`
-                                                      : "Winner TBD"}
-                                                  </span>
-
-                                                  {isWinner && (
-                                                    <span className="text-[10px] font-black uppercase text-emerald-300">
-                                                      Won
-                                                    </span>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            );
-                                          }
-                                        )}
-                                      </div>
-
-                                      <div className="mt-2 flex items-center justify-between gap-3">
-                                        <p className="text-[11px] font-bold uppercase text-amber-300">
-                                          Pick:{" "}
-                                          {pick.pickedTeam?.name ?? "No pick"}
-                                        </p>
-                                        <p className="text-[11px] font-black uppercase text-emerald-300">
-                                          {pick.displayPosition}
-                                        </p>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ) : (
+<BracketView
+  games={bracketGameRows}
+  teams={bracketTeamRows}
+  picks={
+    standing.selectedPicks.map((pick) => ({
+      gameId: "gameId" in pick ? pick.gameId : "",
+      pickedTeam: "pickedTeam" in pick ? pick.pickedTeam : null,
+      winnerTeam: "winnerTeam" in pick ? pick.winnerTeam : null,
+      displayPosition: pick.displayPosition,
+    })) as React.ComponentProps<typeof BracketView>["picks"]
+  }
+/>
+) : (
                       standing.selectedPicks.map((pick, pickIndex) => (
                         <div
                           key={`${standing.entry.id}-${pick.name}-${pickIndex}`}

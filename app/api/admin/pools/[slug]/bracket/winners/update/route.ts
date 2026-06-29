@@ -4,6 +4,11 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { bracketGames, bracketTeams, pools } from "@/db/schema";
 import { getIsAdmin } from "@/lib/auth-helpers";
+import {
+  resolveTeamForBracketSlot,
+  type ResolvedGame,
+  type ResolvedTeam,
+} from "@/lib/brackets/resolve";
 
 type RouteContext = {
   params: Promise<{ slug: string }>;
@@ -39,7 +44,28 @@ export async function POST(request: Request, context: RouteContext) {
     .from(bracketTeams)
     .where(eq(bracketTeams.poolId, pool.id));
 
-  const validTeamIds = new Set(teams.map((team) => team.id));
+  const teamById = new Map(teams.map((team) => [team.id, team]));
+
+  const existingWinnerTeamByGameId = new Map(
+    games
+      .filter((game) => game.winnerTeamId)
+      .map((game) => [game.id, game.winnerTeamId as string])
+  );
+
+  const submittedWinnerTeamByGameId = new Map<string, string>();
+
+  for (const game of games) {
+    const winnerTeamId = String(formData.get(`winner-${game.id}`) ?? "").trim();
+
+    if (winnerTeamId) {
+      submittedWinnerTeamByGameId.set(game.id, winnerTeamId);
+    }
+  }
+
+  const winnerTeamByGameId = new Map([
+    ...existingWinnerTeamByGameId,
+    ...submittedWinnerTeamByGameId,
+  ]);
 
   for (const game of games) {
     const winnerTeamId = String(formData.get(`winner-${game.id}`) ?? "").trim();
@@ -54,14 +80,31 @@ export async function POST(request: Request, context: RouteContext) {
         })
         .where(eq(bracketGames.id, game.id));
 
+      winnerTeamByGameId.delete(game.id);
       continue;
     }
 
-    if (!validTeamIds.has(winnerTeamId)) continue;
+    const teamA = resolveTeamForBracketSlot({
+      game: game as ResolvedGame,
+      slot: "A",
+      games: games as ResolvedGame[],
+      teamById: teamById as Map<string, ResolvedTeam>,
+      pickedTeamByGameId: winnerTeamByGameId,
+    });
 
-    if (winnerTeamId !== game.teamAId && winnerTeamId !== game.teamBId) {
-      continue;
-    }
+    const teamB = resolveTeamForBracketSlot({
+      game: game as ResolvedGame,
+      slot: "B",
+      games: games as ResolvedGame[],
+      teamById: teamById as Map<string, ResolvedTeam>,
+      pickedTeamByGameId: winnerTeamByGameId,
+    });
+
+    const validResolvedTeamIds = new Set(
+      [teamA?.id, teamB?.id].filter((value): value is string => Boolean(value))
+    );
+
+    if (!validResolvedTeamIds.has(winnerTeamId)) continue;
 
     await db
       .update(bracketGames)
@@ -71,42 +114,8 @@ export async function POST(request: Request, context: RouteContext) {
         updatedAt: new Date(),
       })
       .where(eq(bracketGames.id, game.id));
-  }
 
-  const updatedGames = await db
-    .select()
-    .from(bracketGames)
-    .where(eq(bracketGames.poolId, pool.id));
-
-  for (const game of updatedGames) {
-    if (!game.winnerTeamId) continue;
-
-    const nextGames = updatedGames.filter(
-      (nextGame) =>
-        nextGame.sourceGameAId === game.id || nextGame.sourceGameBId === game.id
-    );
-
-    for (const nextGame of nextGames) {
-      if (nextGame.sourceGameAId === game.id) {
-        await db
-          .update(bracketGames)
-          .set({
-            teamAId: game.winnerTeamId,
-            updatedAt: new Date(),
-          })
-          .where(eq(bracketGames.id, nextGame.id));
-      }
-
-      if (nextGame.sourceGameBId === game.id) {
-        await db
-          .update(bracketGames)
-          .set({
-            teamBId: game.winnerTeamId,
-            updatedAt: new Date(),
-          })
-          .where(eq(bracketGames.id, nextGame.id));
-      }
-    }
+    winnerTeamByGameId.set(game.id, winnerTeamId);
   }
 
   redirect(`/admin/pools/${pool.slug}/bracket/setup?winnersUpdated=1`);

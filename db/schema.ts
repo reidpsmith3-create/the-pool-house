@@ -248,6 +248,9 @@ export const bracketGames = pgTable("bracket_games", {
   sourceGameAId: uuid("source_game_a_id"),
   sourceGameBId: uuid("source_game_b_id"),
 
+  slotARule: text("slot_a_rule"),
+  slotBRule: text("slot_b_rule"),
+
   status: text("status").default("scheduled").notNull(),
 
   createdAt: timestamp("created_at").defaultNow().notNull(),
