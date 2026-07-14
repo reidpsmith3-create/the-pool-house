@@ -2,7 +2,14 @@ import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
 
 import { db } from "@/db";
-import { pickGroups, pickOptions, pools } from "@/db/schema";
+import {
+  entryPicks,
+  leaderboardResults,
+  pickGroups,
+  pickOptionAliases,
+  pickOptions,
+  pools,
+} from "@/db/schema";
 import { getIsAdmin } from "@/lib/auth-helpers";
 
 type RouteContext = {
@@ -35,13 +42,32 @@ export async function POST(
     redirect("/admin");
   }
 
+  if (pool.poolType !== "golf") {
+    redirect(`/admin/pools/${pool.slug}`);
+  }
+
+  // Delete dependent records before deleting golfers.
+  await db
+    .delete(entryPicks)
+    .where(eq(entryPicks.poolId, pool.id));
+
+  await db
+    .delete(leaderboardResults)
+    .where(eq(leaderboardResults.poolId, pool.id));
+
+  await db
+    .delete(pickOptionAliases)
+    .where(eq(pickOptionAliases.poolId, pool.id));
+
+  // Delete the imported golfers.
   await db
     .delete(pickOptions)
     .where(eq(pickOptions.poolId, pool.id));
 
+  // Delete the golfer groups last.
   await db
     .delete(pickGroups)
     .where(eq(pickGroups.poolId, pool.id));
 
-  redirect(`/admin/pools/${pool.slug}/golf/setup`);
+  redirect(`/admin/pools/${pool.slug}/golf/setup?cleared=1`);
 }
