@@ -40,37 +40,32 @@ export function calculateGolfEntryScore(
 ) {
   const scoresToCount = getGolfScoresToCount(settings);
 
-  const completedScores = picks
+  const availableScores = picks
     .filter((pick): pick is GolfPickScore & { score: number } => {
       return typeof pick.score === "number";
     })
     .sort((a, b) => a.score - b.score);
 
-  const countedScores = completedScores.slice(0, scoresToCount);
+  const countedScores = availableScores.slice(0, scoresToCount);
 
-  if (countedScores.length < scoresToCount) {
-    return {
-      hasCompleteScore: false,
-      scoresToCount,
-      countedScores,
-      baseScore: null,
-      totalBonus: 0,
-      totalScore: null,
-    };
-  }
+  const baseScore = countedScores.reduce((sum, pick) => {
+    return sum + Number(pick.position ?? 0);
+  }, 0);
+
+  const totalBonus = countedScores.reduce((sum, pick) => {
+    return sum + pick.bonus;
+  }, 0);
+
+  const totalScore = countedScores.reduce((sum, pick) => {
+    return sum + pick.score;
+  }, 0);
 
   return {
-    hasCompleteScore: true,
+    hasCompleteScore: countedScores.length >= scoresToCount,
     scoresToCount,
     countedScores,
-    baseScore: countedScores.reduce((sum, pick) => {
-      return sum + Number(pick.position ?? 0);
-    }, 0),
-    totalBonus: countedScores.reduce((sum, pick) => {
-      return sum + pick.bonus;
-    }, 0),
-    totalScore: countedScores.reduce((sum, pick) => {
-      return sum + pick.score;
-    }, 0),
+    baseScore: countedScores.length > 0 ? baseScore : null,
+    totalBonus,
+    totalScore: countedScores.length > 0 ? totalScore : null,
   };
 }
